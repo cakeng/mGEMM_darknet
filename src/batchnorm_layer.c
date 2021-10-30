@@ -154,6 +154,18 @@ void forward_batchnorm_layer(layer l, network net)
     add_bias(l.output, l.biases, l.batch, l.out_c, l.out_h*l.out_w);
 }
 
+void forward_batchnorm_layer_vectorized(layer l, network net, int vecsize)
+{
+    // #ifdef __GEMMPLUS_DEBUG
+    // printf("forward_batchnorm_layer_vectorized Called.\n");
+    // #endif
+    if(l.type == BATCHNORM) copy_cpu(l.outputs*l.batch, net.input, 1, l.output, 1);
+    copy_cpu(l.outputs*l.batch, l.output, 1, l.x, 1);
+    normalize_cpu_vectorized(l.output, l.rolling_mean, l.rolling_variance, l.batch, l.out_c, l.out_h*l.out_w, vecsize);
+    scale_bias_vectorized(l.output, l.scales, l.batch, l.out_c, l.out_h*l.out_w, vecsize);
+    add_bias_vectorized(l.output, l.biases, l.batch, l.out_c, l.out_h*l.out_w, vecsize);
+}
+
 void backward_batchnorm_layer(layer l, network net)
 {
     if(!net.train){

@@ -60,6 +60,18 @@ network *load_network(char *cfg, char *weights, int clear)
     return net;
 }
 
+network *load_network_backend(char *cfg, char *weights, int clear, BACKEND backend)
+{
+    network *net = parse_network_cfg_backend(cfg, backend);
+    if(weights && weights[0] != 0){
+        load_weights_backend(net, weights, backend);
+    }
+    if(clear) (*net->seen) = 0;
+    return net;
+}
+
+
+
 size_t get_current_batch(network *net)
 {
     size_t batch_num = (*net->seen)/(net->batch*net->subdivisions);

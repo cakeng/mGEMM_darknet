@@ -22,12 +22,19 @@ extern "C" {
 #endif
 
 #define SECRET_NUM -1234
+#define __GEMMPLUS_DEBUG 1
 extern int gpu_index;
 
 typedef struct{
     int classes;
     char **names;
 } metadata;
+
+typedef enum{
+    DEFAULT, GEMMPLUS, ARMNN, XNNPACK, DIRECT, OPENBLAS
+} BACKEND;
+
+
 
 metadata get_metadata(char *file);
 
@@ -177,6 +184,10 @@ struct layer{
     int tanh;
     int *mask;
     int total;
+
+    int vectorized;
+    int vecsize;
+    int devectorize;
 
     float alpha;
     float beta;
@@ -583,7 +594,7 @@ typedef struct{
     float left, right, top, bottom;
 } box_label;
 
-
+network *load_network_backend(char *cfg, char *weights, int clear, BACKEND backend);
 network *load_network(char *cfg, char *weights, int clear);
 load_args get_base_args(network *net);
 
@@ -619,6 +630,7 @@ void axpy_cpu(int N, float ALPHA, float *X, int INCX, float *Y, int INCY);
 void copy_cpu(int N, float *X, int INCX, float *Y, int INCY);
 void scal_cpu(int N, float ALPHA, float *X, int INCX);
 void fill_cpu(int N, float ALPHA, float * X, int INCX);
+void normalize_cpu_vectorized(float *x, float *mean, float *variance, int batch, int filters, int spatial, int vecsize);
 void normalize_cpu(float *x, float *mean, float *variance, int batch, int filters, int spatial);
 void softmax(float *input, int n, float temp, int stride, float *output);
 
@@ -680,10 +692,13 @@ int option_find_int(list *l, char *key, int def);
 int option_find_int_quiet(list *l, char *key, int def);
 
 network *parse_network_cfg(char *filename);
+network *parse_network_cfg_backend(char *filename, BACKEND backend);
 void save_weights(network *net, char *filename);
 void load_weights(network *net, char *filename);
+void load_weights_backend(network *net, char *filename, BACKEND backend);
 void save_weights_upto(network *net, char *filename, int cutoff);
 void load_weights_upto(network *net, char *filename, int start, int cutoff);
+void load_weights_upto_backend(network *net, char *filename, int start, int cutoff, BACKEND backend);
 
 void zero_objectness(layer l);
 void get_region_detections(layer l, int w, int h, int netw, int neth, float thresh, int *map, float tree_thresh, int relative, detection *dets);

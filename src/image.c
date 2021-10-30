@@ -1301,6 +1301,30 @@ image load_image_stb(char *filename, int channels)
     if(channels) c = channels;
     int i,j,k;
     image im = make_image(w, h, c);
+
+    //For MobileNet v2
+	// for(k = 0; k < c; ++k){
+    //     for(j = 0; j < h; ++j){
+    //         for(i = 0; i < w; ++i){
+	// 			if (k==0) {
+	// 				int dst_index = i + w*j + w*h*(k+2);
+	// 				int src_index = k + c*i + c*w*j;
+	// 				im.data[dst_index] = ((float)data[src_index]-123.68)*0.017;
+	// 			}
+	// 			if (k==1) {
+	// 				int dst_index = i + w*j + w*h*k;
+	// 				int src_index = k + c*i + c*w*j;
+	// 				im.data[dst_index] = ((float)data[src_index]-116.78)*0.017;
+	// 			}
+	// 			if (k==2) {
+	// 				int dst_index = i + w*j + w*h*(k-2);
+	// 				int src_index = k + c*i + c*w*j;
+	// 				im.data[dst_index] = ((float)data[src_index]-103.94)*0.017;
+	// 			}
+    //         }
+    //     }
+    // }
+
     for(k = 0; k < c; ++k){
         for(j = 0; j < h; ++j){
             for(i = 0; i < w; ++i){

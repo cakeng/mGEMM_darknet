@@ -586,7 +586,12 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
             strtok(input, "\n");
         }
         image im = load_image_color(input, 0, 0);
-        image r = letterbox_image(im, net->w, net->h);
+
+        // image r = letterbox_image(im, net->w, net->h);
+
+        //For MobileNet v2
+		image r = resize_image(im, net->w, net->h);
+
         //image r = resize_min(im, 320);
         //printf("%d %d\n", r.w, r.h);
         //resize_network(net, r.w, r.h);
@@ -599,11 +604,104 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
         top_k(predictions, net->outputs, top, indexes);
         fprintf(stderr, "%s: Predicted in %f seconds.\n", input, sec(clock()-time));
         for(i = 0; i < top; ++i){
-            int index = indexes[i];
+            int index = indexes[i]%1000;
             //if(net->hierarchy) printf("%d, %s: %f, parent: %s \n",index, names[index], predictions[index], (net->hierarchy->parent[index] >= 0) ? names[net->hierarchy->parent[index]] : "Root");
             //else printf("%s: %f\n",names[index], predictions[index]);
             printf("%5.2f%%: %s\n", predictions[index]*100, names[index]);
         }
+        if(r.data != im.data) free_image(r);
+        free_image(im);
+        if (filename) break;
+    }
+}
+
+float *NCHWtoNHWC(float *input, int blocks, int channels, int height, int width)
+{
+    float *out;
+    if (posix_memalign((void **)(&out), 128, blocks * channels * height * width * sizeof(float)))
+    {
+        printf("Test input NHWC - POSIX memalign failed.");
+    }
+    for (int bIdx = 0; bIdx < blocks; bIdx++)
+    {
+        for (int cIdx = 0; cIdx < channels; cIdx++)
+        {
+            float *saveTarget = out + bIdx * channels * height * width + cIdx;
+            float *loadTarget = input + bIdx * channels * height * width + cIdx * height * width;
+            for (int hIdx = 0; hIdx < height; hIdx++)
+            {
+                for (int wIdx = 0; wIdx < width; wIdx++)
+                {
+                    *(saveTarget) = *(loadTarget);
+                    saveTarget += channels;
+                    loadTarget += 1;
+                }
+            }
+        }
+    }
+    return out;
+}
+
+void predict_classifier_backend(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top, BACKEND backend)
+{
+    network *net = load_network_backend(cfgfile, weightfile, 0, backend);
+    set_batch_network(net, 1);
+    srand(2222222);
+
+    list *options = read_data_cfg(datacfg);
+
+    char *name_list = option_find_str(options, "names", 0);
+    if(!name_list) name_list = option_find_str(options, "labels", "data/labels.list");
+    if(top == 0) top = option_find_int(options, "top", 1);
+
+    int i = 0;
+    char **names = get_labels(name_list);
+    clock_t time;
+    int *indexes = calloc(top, sizeof(int));
+    char buff[256];
+    char *input = buff;
+    while(1){
+        if(filename){
+            strncpy(input, filename, 256);
+        }else{
+            printf("Enter Image Path: ");
+            fflush(stdout);
+            input = fgets(input, 256, stdin);
+            if(!input) return;
+            strtok(input, "\n");
+        }
+        image im = load_image_color(input, 0, 0);
+
+		//Original
+        image r = letterbox_image(im, net->w, net->h);
+		//For MobileNet v2
+		// image r = resize_image(im, net->w, net->h);
+
+		//resize_network(net, r.w, r.h);
+        //printf("%d %d\n", r.w, r.h);
+
+        float *X;
+        if (backend != DEFAULT && backend != OPENBLAS)
+        {
+            X = NCHWtoNHWC(r.data, net->batch, net->c, net->h, net->w);
+        }
+        else
+        {
+            X = r.data;
+        }
+
+        time=clock();
+        float *predictions = network_predict(net, X);
+        if(net->hierarchy) hierarchy_predictions(predictions, net->outputs, net->hierarchy, 1, 1);
+        top_k(predictions, net->outputs, top, indexes);
+        fprintf(stderr, "%s: Predicted in %f seconds.\n", input, sec(clock()-time));
+        for(i = 0; i < top; ++i){
+            int index = indexes[i]%1000;
+            //if(net->hierarchy) printf("%d, %s: %f, parent: %s \n",index, names[index], predictions[index], (net->hierarchy->parent[index] >= 0) ? names[net->hierarchy->parent[index]] : "Root");
+            //else printf("%s: %f\n",names[index], predictions[index]);
+            printf("%5.2f%%: %s\n", predictions[index]*100, names[index]);
+        }
+        if(X != r.data) free (X);
         if(r.data != im.data) free_image(r);
         free_image(im);
         if (filename) break;
@@ -1076,9 +1174,44 @@ void run_classifier(int argc, char **argv)
     char *cfg = argv[4];
     char *weights = (argc > 5) ? argv[5] : 0;
     char *filename = (argc > 6) ? argv[6]: 0;
-    char *layer_s = (argc > 7) ? argv[7]: 0;
+    char *back = (argc > 7) ? argv[7]: 0;
+    char *layer_s = (argc > 8) ? argv[8]: 0;
+    BACKEND backend;
+    if (back)
+    {
+        if (0 == strcmp(back, "DEFAULT"))
+        {
+            backend = DEFAULT;
+        }
+        else if (0 == strcmp(back, "GEMMPLUS"))
+        {
+            backend = GEMMPLUS;
+        }
+        else if (0 == strcmp(back, "ARMNN"))
+        {
+            backend = ARMNN;
+        }
+        else if (0 == strcmp(back, "XNNPACK"))
+        {
+            backend = XNNPACK;
+        }
+        else if (0 == strcmp(back, "DIRECT"))
+        {
+            backend = DIRECT;
+        }
+        else if (0 == strcmp(back, "OPENBLAS"))
+        {
+            backend = OPENBLAS;
+        }
+    }
+    else
+    {
+        backend = DEFAULT;
+    }
+
     int layer = layer_s ? atoi(layer_s) : -1;
     if(0==strcmp(argv[2], "predict")) predict_classifier(data, cfg, weights, filename, top);
+    else if(0==strcmp(argv[2], "backend")) predict_classifier_backend(data, cfg, weights, filename, top, backend);
     else if(0==strcmp(argv[2], "fout")) file_output_classifier(data, cfg, weights, filename);
     else if(0==strcmp(argv[2], "try")) try_classifier(data, cfg, weights, filename, atoi(layer_s));
     else if(0==strcmp(argv[2], "train")) train_classifier(data, cfg, weights, gpus, ngpus, clear);

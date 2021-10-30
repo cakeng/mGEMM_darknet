@@ -65,6 +65,37 @@ void weighted_delta_cpu(float *a, float *b, float *s, float *da, float *db, floa
     }
 }
 
+void shortcut_cpu_vectorized(int batch, int w1, int h1, int c1, float *add, int w2, int h2, int c2, float *out, int vecsize)
+{
+    int stride = w1/w2;
+    int sample = w2/w1;
+    assert(stride == h1/h2);
+    assert(sample == h2/h1);
+    if(stride < 1) stride = 1;
+    if(sample < 1) sample = 1;
+    int minw = (w1 < w2) ? w1 : w2;
+    int minh = (h1 < h2) ? h1 : h2;
+    int minc = (c1 < c2) ? c1 : c2;
+
+    // #ifdef __GEMMPLUS_DEBUG
+    // printf("vecsize: %d, minc : %d, minh : %d, minw : %d.\n", vecsize, minc, minh, minw);
+    // #endif
+
+    int i,j,k,b;
+    for(b = 0; b < batch; ++b){
+        for(k = 0; k < minc; ++k){
+            for(j = 0; j < minh; ++j){
+                for(i = 0; i < minw; ++i){
+                    int out_index = (k%vecsize) + (i*sample + w2*j*sample)*vecsize + w2*h2*(k/vecsize)*vecsize + w2*h2*c2*b;
+                    int add_index = (k%vecsize) + (i*stride + w1*j*stride)*vecsize + w1*h1*(k/vecsize)*vecsize + w1*h1*c1*b;
+
+                    out[out_index] += add[add_index];
+                }
+            }
+        }
+    }
+}
+
 void shortcut_cpu(int batch, int w1, int h1, int c1, float *add, int w2, int h2, int c2, float s1, float s2, float *out)
 {
     int stride = w1/w2;
@@ -138,6 +169,20 @@ void l2normalize_cpu(float *x, float *dx, int batch, int filters, int spatial)
                 int index = b*filters*spatial + f*spatial + i;
                 x[index] /= sum;
                 dx[index] = (1 - x[index]) / sum;
+            }
+        }
+    }
+}
+
+
+void normalize_cpu_vectorized(float *x, float *mean, float *variance, int batch, int filters, int spatial, int vecsize)
+{
+    int b, f, i;
+    for(b = 0; b < batch; ++b){
+        for(f = 0; f < filters; ++f){
+            for(i = 0; i < spatial; ++i){
+                int index = b*filters*spatial + (f/vecsize)*spatial*vecsize + i*vecsize + (f%vecsize);
+                x[index] = (x[index] - mean[f])/(sqrt(variance[f]) + .000001f);
             }
         }
     }

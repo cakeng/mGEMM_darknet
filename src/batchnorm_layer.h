@@ -7,6 +7,7 @@
 
 layer make_batchnorm_layer(int batch, int w, int h, int c);
 void forward_batchnorm_layer(layer l, network net);
+void forward_batchnorm_layer_vectorized(layer l, network net, int vecsize);
 void backward_batchnorm_layer(layer l, network net);
 
 #ifdef GPU
