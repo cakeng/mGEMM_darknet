@@ -45,7 +45,7 @@ void weighted_delta_cpu(float *a, float *b, float *s, float *da, float *db, floa
 void softmax(float *input, int n, float temp, int stride, float *output);
 void softmax_cpu(float *input, int n, int batch, int batch_offset, int groups, int group_offset, int stride, float temp, float *output);
 void upsample_cpu(float *in, int w, int h, int c, int batch, int stride, int forward, float scale, float *out);
-
+void upsample_cpu_vectorized(float *in, int w, int h, int c, int batch, int stride, int forward, float scale, float *out, int vecsize);
 #ifdef GPU
 #include "cuda.h"
 #include "tree.h"

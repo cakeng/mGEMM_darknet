@@ -1,4 +1,5 @@
 #include "upsample_layer.h"
+#include "extern_libs.h"
 #include "cuda.h"
 #include "blas.h"
 
@@ -28,6 +29,43 @@ layer make_upsample_layer(int batch, int w, int h, int c, int stride)
     l.output = calloc(l.outputs*batch, sizeof(float));;
 
     l.forward = forward_upsample_layer;
+    l.backward = backward_upsample_layer;
+    #ifdef GPU
+    l.forward_gpu = forward_upsample_layer_gpu;
+    l.backward_gpu = backward_upsample_layer_gpu;
+
+    l.delta_gpu =  cuda_make_array(l.delta, l.outputs*batch);
+    l.output_gpu = cuda_make_array(l.output, l.outputs*batch);
+    #endif
+    if(l.reverse) fprintf(stderr, "downsample         %2dx  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", stride, w, h, c, l.out_w, l.out_h, l.out_c);
+    else fprintf(stderr, "upsample           %2dx  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", stride, w, h, c, l.out_w, l.out_h, l.out_c);
+    return l;
+}
+
+layer make_upsample_layer_backend(int batch, int w, int h, int c, int stride, BACKEND backend)
+{
+    layer l = {0};
+    l.type = UPSAMPLE;
+    l.batch = batch;
+    l.w = w;
+    l.h = h;
+    l.c = c;
+    l.out_w = w*stride;
+    l.out_h = h*stride;
+    l.out_c = c;
+    if(stride < 0){
+        stride = -stride;
+        l.reverse=1;
+        l.out_w = w/stride;
+        l.out_h = h/stride;
+    }
+    l.stride = stride;
+    l.outputs = l.out_w*l.out_h*l.out_c;
+    l.inputs = l.w*l.h*l.c;
+    l.delta =  calloc(l.outputs*batch, sizeof(float));
+    l.output = calloc(l.outputs*batch, sizeof(float));;
+
+    l.forward = forward_upsample_layer_vectorized;
     l.backward = backward_upsample_layer;
     #ifdef GPU
     l.forward_gpu = forward_upsample_layer_gpu;
@@ -72,6 +110,25 @@ void forward_upsample_layer(const layer l, network net)
         upsample_cpu(l.output, l.out_w, l.out_h, l.c, l.batch, l.stride, 0, l.scale, net.input);
     }else{
         upsample_cpu(net.input, l.w, l.h, l.c, l.batch, l.stride, 1, l.scale, l.output);
+    }
+}
+
+void forward_upsample_layer_vectorized(const layer l, network net)
+{
+    fill_cpu(l.outputs*l.batch, 0, l.output, 1);
+    // #ifdef __GEMMPLUS_DEBUG
+    // printf("GEMMPLUS forward_upsample...\n");
+    // printf("Batch: %d, Out_c: %d, Out_h: %d, Out_w: %d, Vecsize: %d\n"
+    //     , l.batch, l.out_c, l.out_h, l.out_w, l.vecsize);
+    // #endif
+    if(l.reverse){
+        upsample_cpu_vectorized(l.output, l.out_w, l.out_h, l.c, l.batch, l.stride, 0, l.scale, net.input, l.vecsize);
+    }else{
+        upsample_cpu_vectorized(net.input, l.w, l.h, l.c, l.batch, l.stride, 1, l.scale, l.output, l.vecsize);
+    }
+    if(l.devectorize)
+    {
+        deVectorize (l, 0);
     }
 }
 

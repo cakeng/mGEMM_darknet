@@ -728,6 +728,32 @@ layer parse_upsample(list *options, size_params params, network *net)
 
     int stride = option_find_int(options, "stride",2);
     layer l = make_upsample_layer(params.batch, params.w, params.h, params.c, stride);
+    int vectorized = option_find_int_quiet(options, "vectorized", 1);
+    int vecsize = option_find_int_quiet(options, "vecsize", 8);
+    int devectorize = option_find_int_quiet(options, "devectorize", 0);
+
+    l.scale = option_find_float_quiet(options, "scale", 1);
+    return l;
+}
+
+layer parse_upsample_backend(list *options, size_params params, network *net, BACKEND backend)
+{
+
+    int stride = option_find_int(options, "stride",2);
+    layer l = make_upsample_layer_backend(params.batch, params.w, params.h, params.c, stride, backend);
+    int vectorized = option_find_int_quiet(options, "vectorized", 1);
+    int vecsize = option_find_int_quiet(options, "vecsize", 8);
+    int devectorize = option_find_int_quiet(options, "devectorize", 0);
+    if (!(backend == GEMMPLUS || backend == DIRECT))
+    {
+        vectorized = 0;
+        vecsize = 1;
+        devectorize = 0;
+    }
+    l.vecsize = vecsize;
+    l.vectorized = vectorized;
+    l.devectorize = devectorize;
+
     l.scale = option_find_float_quiet(options, "scale", 1);
     return l;
 }
@@ -1106,7 +1132,7 @@ network *parse_network_cfg_backend(char *filename, BACKEND backend)
         }else if(lt == ROUTE){
             l = parse_route(options, params, net);
         }else if(lt == UPSAMPLE){
-            l = parse_upsample(options, params, net);
+            l = parse_upsample_backend(options, params, net, backend);
         }else if(lt == SHORTCUT){
             l = parse_shortcut_backend(options, params, net, backend);
         }else if(lt == DROPOUT){
@@ -1670,15 +1696,14 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
         //load_convolutional_weights_binary(l, fp);
         //return;
     }
-    int num = l.nweights;
+    if(l.numload) l.n = l.numload;
+    int num = l.c/l.groups*l.n*l.size*l.size;
     fread(l.biases, sizeof(float), l.n, fp);
-    if (l.batch_normalize && (!l.dontloadscales))
-    {
+    if (l.batch_normalize && (!l.dontloadscales)){
         fread(l.scales, sizeof(float), l.n, fp);
         fread(l.rolling_mean, sizeof(float), l.n, fp);
         fread(l.rolling_variance, sizeof(float), l.n, fp);
-        if(0)
-        {
+        if(0){
             int i;
             for(i = 0; i < l.n; ++i){
                 printf("%g, ", l.rolling_mean[i]);
@@ -1689,13 +1714,11 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
             }
             printf("\n");
         }
-        if(0)
-        {
+        if(0){
             fill_cpu(l.n, 0, l.rolling_mean, 1);
             fill_cpu(l.n, 0, l.rolling_variance, 1);
         }
-        if(0)
-        {
+        if(0){
             int i;
             for(i = 0; i < l.n; ++i){
                 printf("%g, ", l.rolling_mean[i]);
@@ -1709,7 +1732,7 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
     }
     if (backend == GEMMPLUS)
     {
-        float* tmp = (float*)malloc(l.nweights*sizeof(float));
+        float* tmp = (float*)malloc(num*sizeof(float));
         fread(tmp, sizeof(float), num, fp);
         vectorize_weights_gemm(l, tmp);
         free(tmp);

@@ -126,6 +126,12 @@ void forward_maxpool_layer_vectorized(const maxpool_layer l, network net)
     int w = l.out_w;
     int c = l.c;
 
+    // #ifdef __GEMMPLUS_DEBUG
+    // printf("Vec maxpool...\n");
+    // printf("Batch: %d, C: %d, Out_h: %d, Out_w: %d, Vecsize: %d\n"
+    //     , l.batch, c, l.out_h, l.out_w, l.vecsize);
+    // #endif
+
     for(b = 0; b < l.batch; ++b){
         for(k = 0; k < c; ++k){
             for(i = 0; i < h; ++i){

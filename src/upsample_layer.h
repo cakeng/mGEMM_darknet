@@ -3,7 +3,9 @@
 #include "darknet.h"
 
 layer make_upsample_layer(int batch, int w, int h, int c, int stride);
+layer make_upsample_layer_backend(int batch, int w, int h, int c, int stride, BACKEND backend);
 void forward_upsample_layer(const layer l, network net);
+void forward_upsample_layer_vectorized(const layer l, network net);
 void backward_upsample_layer(const layer l, network net);
 void resize_upsample_layer(layer *l, int w, int h);
 

@@ -1,5 +1,5 @@
 #include "darknet.h"
-
+#include "extern_libs.h"
 #include <sys/time.h>
 #include <assert.h>
 
@@ -600,6 +600,19 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
         float *X = r.data;
         time=clock();
         float *predictions = network_predict(net, X);
+        printf("Size: %d\n", net->outputs);
+        for (int i = 0; i < 20; i++)
+        {
+            for (int j = 0; j < 12; j++)
+            {
+                int idx = i*12*31 + j*31;
+                if (idx < net->outputs)
+                {
+                    printf("%3.2f\t", *(predictions + idx));
+                }   
+            }
+            printf("\n");
+        }
         if(net->hierarchy) hierarchy_predictions(predictions, net->outputs, net->hierarchy, 1, 1);
         top_k(predictions, net->outputs, top, indexes);
         fprintf(stderr, "%s: Predicted in %f seconds.\n", input, sec(clock()-time));
@@ -613,33 +626,6 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
         free_image(im);
         if (filename) break;
     }
-}
-
-float *NCHWtoNHWC(float *input, int blocks, int channels, int height, int width)
-{
-    float *out;
-    if (posix_memalign((void **)(&out), 128, blocks * channels * height * width * sizeof(float)))
-    {
-        printf("Test input NHWC - POSIX memalign failed.");
-    }
-    for (int bIdx = 0; bIdx < blocks; bIdx++)
-    {
-        for (int cIdx = 0; cIdx < channels; cIdx++)
-        {
-            float *saveTarget = out + bIdx * channels * height * width + cIdx;
-            float *loadTarget = input + bIdx * channels * height * width + cIdx * height * width;
-            for (int hIdx = 0; hIdx < height; hIdx++)
-            {
-                for (int wIdx = 0; wIdx < width; wIdx++)
-                {
-                    *(saveTarget) = *(loadTarget);
-                    saveTarget += channels;
-                    loadTarget += 1;
-                }
-            }
-        }
-    }
-    return out;
 }
 
 void predict_classifier_backend(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top, BACKEND backend)
@@ -692,6 +678,19 @@ void predict_classifier_backend(char *datacfg, char *cfgfile, char *weightfile, 
 
         time=clock();
         float *predictions = network_predict(net, X);
+        printf("Size: %d\n", net->outputs);
+        for (int i = 0; i < 20; i++)
+        {
+            for (int j = 0; j < 12; j++)
+            {
+                int idx = i*12*31 + j*31;
+                if (idx < net->outputs)
+                {
+                    printf("%3.2f\t", *(predictions + idx));
+                }   
+            }
+            printf("\n");
+        }
         if(net->hierarchy) hierarchy_predictions(predictions, net->outputs, net->hierarchy, 1, 1);
         top_k(predictions, net->outputs, top, indexes);
         fprintf(stderr, "%s: Predicted in %f seconds.\n", input, sec(clock()-time));

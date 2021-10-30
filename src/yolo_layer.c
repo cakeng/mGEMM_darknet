@@ -133,17 +133,11 @@ void forward_yolo_layer(const layer l, network net)
 {
     int i,j,b,t,n;
     memcpy(l.output, net.input, l.outputs*l.batch*sizeof(float));
-
-#ifndef GPU
-    for (b = 0; b < l.batch; ++b){
-        for(n = 0; n < l.n; ++n){
-            int index = entry_index(l, b, n*l.w*l.h, 0);
-            activate_array(l.output + index, 2*l.w*l.h, LOGISTIC);
-            index = entry_index(l, b, n*l.w*l.h, 4);
-            activate_array(l.output + index, (1+l.classes)*l.w*l.h, LOGISTIC);
-        }
-    }
-#endif
+    // #ifdef __GEMMPLUS_DEBUG
+    // printf("forward_yolo Called.\n");
+    // printf("Batch: %d, n: %d, Out_c: %d, h: %d, w: %d, In_c: %d, Depthwise: %d, Vecsize: %d\n"
+    //     , l.batch, l.n, l.out_c, l.h, l.w, l.c, l.groups != 1, l.vecsize);
+    // #endif
 
     memset(l.delta, 0, l.outputs * l.batch * sizeof(float));
     if(!net.train) return;
