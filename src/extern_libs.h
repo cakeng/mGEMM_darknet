@@ -15,6 +15,8 @@ void deVectorize (layer l, int toNHWC);
 void gemmplus_convolutional_layer(convolutional_layer l, network net);
 void armnn_convolutional_layer(convolutional_layer l, network net);
 void xnnpack_convolutional_layer(convolutional_layer l, network net);
+void make_xnnpack_layer(convolutional_layer* l);
+void* xnnpack_pthreadpool_create();
 void direct_convolutional_layer(convolutional_layer l, network net);
 void openblas_convolutional_layer(convolutional_layer l, network net);
 

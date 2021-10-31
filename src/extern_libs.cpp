@@ -7,10 +7,13 @@
 #include <iomanip>
 #include <random>
 #include <cblas.h>
+#include <xnnpack.h>
+#include <math.h>
 #include "extern_libs.h"
 #include "ptmm.h"
 extern "C"
 {
+    #include <sys/time.h>
     #include "activations.h"
     #include "batchnorm_layer.h"
     #include "convolutional_layer.h"
@@ -97,12 +100,12 @@ float* deVectorizeToNCHW (float* input, int blocks, int channels, int height, in
 
 void deVectorize (layer l, int toNHWC)
 {
-    #ifdef __GEMMPLUS_DEBUG
-    printf("GEMMPLUS Devectorizing...\n");
-    printf("Batch: %d, Out_c: %d, Out_h: %d, Out_w: %d, Vecsize: %d\n"
-        , l.batch, l.out_c, l.out_h, l.out_w, l.vecsize);
-    #endif
     float* tmp;
+    #ifdef __GEMMPLUS_DEBUG
+    printf("Devectorizing...\n");
+    printf("Batch: %d, Out_c: %d, Out_h: %d, Out_w: %d, vectorized: %d, vecsize: %d\n"
+        , l.batch, l.out_c, l.out_h, l.out_w, l.vectorized, l.vecsize);
+    #endif
     if (!toNHWC)
     {
         tmp = deVectorizeToNCHW(l.output, l.batch, l.out_c, l.out_h, l.out_w, l.vecsize);
@@ -123,8 +126,12 @@ void gemmplus_convolutional_layer(convolutional_layer l, network net)
     // printf("Batch: %d, n: %d, Out_c: %d, Out_h: %d, Out_w: %d, In_c: %d, Depthwise: %d, Vecsize: %d\n"
     //     , l.batch, l.n, l.out_c, l.out_h, l.out_w, l.c, l.groups != 1, l.vecsize);
     // #endif
+
     ptmm ptmmFilter(0, l.weights, l.out_c, l.c, l.size, l.size, false, l.groups != 1);
+    
     ptmmFilter.conv(net.input, l.output, nullptr, l.batch, l.h, l.w, l.pad, l.stride, 1);
+    
+    clock_t time=clock();
     if(l.batch_normalize)
     {
         forward_batchnorm_layer_vectorized(l, net, l.vecsize);
@@ -134,6 +141,7 @@ void gemmplus_convolutional_layer(convolutional_layer l, network net)
         add_bias_vectorized(l.output, l.biases, l.batch, l.n, l.out_h*l.out_w, l.vecsize);
     }
     activate_array(l.output, l.outputs*l.batch, l.activation);
+    // printf("GEMM Plus %f seconds.\n", sec(clock()-time));
 
     if (l.devectorize)
     {
@@ -148,7 +156,99 @@ void armnn_convolutional_layer(convolutional_layer l, network net)
 
 void xnnpack_convolutional_layer(convolutional_layer l, network net)
 {
-    printf("XNNPACK Wrapper Called.\n");
+    // printf("XNNPACK Wrapper Called.\n");
+    // printf("Batch: %d, n: %d, Out_c: %d, Out_h: %d, Out_w: %d, In_c: %d, Groups: %d, Vecsize: %d\n"
+    //     , l.batch, l.n, l.out_c, l.out_h, l.out_w, l.c, l.groups, l.vecsize);
+    if (net.xnnpack_threadpool != l.xnnpack_pthreadpool)
+    {
+        std::cerr << "XNNPACK threadpool assertion failed." << std::endl;
+    }
+    xnn_status status;
+    
+    if (l.prev_output != net.input)
+    {
+        printf("XNNPACK Prev output == input failed.\n");
+        
+        status = xnn_setup_convolution2d_nhwc_f32(
+        (xnn_operator_t)l.xnnpack_op,
+        l.batch /* batch size */, l.h /* input height */, l.w /* input width */,
+        net.input /* input */, l.output /* xnnpackOutput */,
+        (pthreadpool_t)net.xnnpack_threadpool /* threadpool */);
+        if (status != xnn_status_success)
+        {
+            std::cerr << "failed to setup operation #0" << std::endl;
+        }
+    }
+    
+    xnn_run_operator((xnn_operator_t)l.xnnpack_op, (pthreadpool_t)net.xnnpack_threadpool);
+
+    clock_t time=clock();
+    if(l.batch_normalize)
+    {
+        forward_batchnorm_layer_vectorized(l, net, l.vecsize);
+    }
+    else 
+    {
+        add_bias_vectorized(l.output, l.biases, l.batch, l.n, l.out_h*l.out_w, l.vecsize);
+    }
+    activate_array(l.output, l.outputs*l.batch, l.activation);
+    // printf("XNNPACK %f seconds.\n", sec(clock()-time));
+
+    if (l.devectorize)
+    {
+        deVectorize (l, 0);
+    }
+    
+}
+void make_xnnpack_layer(convolutional_layer* l)
+{
+    xnn_status status;
+    pthreadpool_t threadpool = (pthreadpool_t)l->xnnpack_pthreadpool;
+
+    if (xnn_initialize(nullptr /* allocator */) != xnn_status_success)
+    {
+        std::cerr << "failed to initialize XNNPACK" << std::endl;
+    }
+    xnn_operator_t op = nullptr;
+    status = xnn_create_convolution2d_nhwc_f32(
+        l->pad /* top padding */, l->pad /* right padding */,
+        l->pad /* bottom padding */, l->pad /* left padding */,
+        l->size /* kernel height */, l->size /* kernel width */,
+        l->stride /* subsampling height */, l->stride /* subsampling width */,
+        1 /* dilation_height */, 1 /* dilation_width */,
+        l->groups /* groups */,
+        l->c/l->groups /* input channels per group */,
+        l->out_c/l->groups /* xnnpackOutput_channels_per_group */,
+        l->c /* input pixel stride */,
+        l->out_c /* xnnpackOutput pixel stride */,
+        l->weights, l->zeros,
+        -(__builtin_inff()) /* xnnpackOutput min */, (__builtin_inff()) /* xnnpackOutput max */,
+        0 /* flags */,
+        &op);
+    if (status != xnn_status_success)
+    {
+        std::cerr << "failed to create operation #0 - status: " << status << std::endl;
+    }
+    if (l->prev_output != NULL)
+    {
+        status = xnn_setup_convolution2d_nhwc_f32(
+        op,
+        l->batch /* batch size */, l->h /* input height */, l->w /* input width */,
+        l->prev_output /* input */, l->output /* xnnpackOutput */,
+        threadpool /* threadpool */);
+        if (status != xnn_status_success)
+        {
+            std::cerr << "failed to setup operation #0" << std::endl;
+        }
+    }
+    l->xnnpack_op = op;
+    // printf("XNNPACK Conv layer created. - addr %lld\n", (uint64_t)l->xnnpack_op);
+    // printf("Batch: %d, n: %d, Out_c: %d, Out_h: %d, Out_w: %d, In_c: %d, Groups: %d, Vecsize: %d\n"
+    //     , l->batch, l->n, l->out_c, l->out_h, l->out_w, l->c, l->groups, l->vecsize);
+}
+void* xnnpack_pthreadpool_create()
+{
+    return (void*)pthreadpool_create(std::thread::hardware_concurrency());
 }
 
 void direct_convolutional_layer(convolutional_layer l, network net)

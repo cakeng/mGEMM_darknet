@@ -329,7 +329,7 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
 
 convolutional_layer make_convolutional_layer_backend(int batch, int h, int w, int c, int n, int groups, int size, 
     int stride, int padding, ACTIVATION activation, int batch_normalize, int binary, int xnor, int adam, 
-        BACKEND backend , int vectorized, int vecsize, int devectorize)
+        BACKEND backend)
 {
     // TODO
     int i;
@@ -348,9 +348,7 @@ convolutional_layer make_convolutional_layer_backend(int batch, int h, int w, in
     l.size = size;
     l.pad = padding;
     l.batch_normalize = batch_normalize;
-    l.vectorized = vectorized;
-    l.vecsize = vecsize;
-    l.devectorize = devectorize;
+
 
     l.weights = calloc(c/groups*n*size*size, sizeof(float));
     l.weight_updates = calloc(c/groups*n*size*size, sizeof(float));
@@ -385,6 +383,10 @@ convolutional_layer make_convolutional_layer_backend(int batch, int h, int w, in
     else if (backend == GEMMPLUS)
     {
         l.forward = gemmplus_convolutional_layer;
+    }
+    else if (backend == XNNPACK)
+    {
+        l.forward = xnnpack_convolutional_layer;
     }
     else if (backend == ARMNN)
     {

@@ -130,6 +130,22 @@ typedef struct size_params{
     network *net;
 } size_params;
 
+void parse_vecsize(layer* l, list *options, size_params params, BACKEND backend)
+{
+    l->vectorized = option_find_int_quiet(options, "vectorized", 1);
+    l->vecsize = option_find_int_quiet(options, "vecsize", 8);
+    l->devectorize = option_find_int_quiet(options, "devectorize", 0);
+    if (backend == DEFAULT || backend == OPENBLAS)
+    {
+        l->vectorized = 0;
+        l->vecsize = 1;
+    }
+    else if (backend == ARMNN || backend == XNNPACK)
+    {
+        l->vecsize = l->out_c;
+    }
+}
+
 local_layer parse_local(list *options, size_params params)
 {
     int n = option_find_int(options, "filters",1);
@@ -185,9 +201,6 @@ convolutional_layer parse_convolutional(list *options, size_params params)
     int pad = option_find_int_quiet(options, "pad",0);
     int padding = option_find_int_quiet(options, "padding",0);
     int groups = option_find_int_quiet(options, "groups", 1);
-    int vectorized = option_find_int_quiet(options, "vectorized", 0);
-    int vecsize = option_find_int_quiet(options, "vecsize", 1);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
     if(pad) padding = size/2;
 
     char *activation_s = option_find_str(options, "activation", "logistic");
@@ -204,6 +217,7 @@ convolutional_layer parse_convolutional(list *options, size_params params)
     int xnor = option_find_int_quiet(options, "xnor", 0);
 
     convolutional_layer layer = make_convolutional_layer(batch,h,w,c,n,groups,size,stride,padding,activation, batch_normalize, binary, xnor, params.net->adam);
+    parse_vecsize(&layer, options, params, DEFAULT);
     layer.flipped = option_find_int_quiet(options, "flipped", 0);
     layer.dot = option_find_float_quiet(options, "dot", 0);
 
@@ -219,15 +233,6 @@ convolutional_layer parse_convolutional_backend(list *options, size_params param
     int padding = option_find_int_quiet(options, "padding",0);
     int groups = option_find_int_quiet(options, "groups", 1);
 
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
-    if (!(backend == GEMMPLUS || backend == DIRECT))
-    {
-        vectorized = 0;
-        vecsize = 1;
-        devectorize = 0;
-    }
     if(pad) padding = size/2;
 
     char *activation_s = option_find_str(options, "activation", "logistic");
@@ -245,7 +250,22 @@ convolutional_layer parse_convolutional_backend(list *options, size_params param
 
     convolutional_layer layer = make_convolutional_layer_backend
         (batch,h,w,c,n,groups,size,stride,padding,activation, batch_normalize, binary, xnor, 
-            params.net->adam, backend, vectorized, vecsize, devectorize);
+            params.net->adam, backend);
+    parse_vecsize(&layer, options, params, backend);
+    if (params.index > 0)
+    {
+        layer.prev_output = ((params.net)->layers[params.index - 1]).output;
+    }
+    else
+    {
+        layer.prev_output = NULL;
+    }
+    if(backend == XNNPACK)
+    {
+        layer.xnnpack_pthreadpool = params.net->xnnpack_threadpool;
+        layer.zeros = (float*)calloc(layer.out_c, sizeof(float));
+    }
+
     layer.flipped = option_find_int_quiet(options, "flipped", 0);
     layer.dot = option_find_float_quiet(options, "dot", 0);
 
@@ -531,9 +551,6 @@ maxpool_layer parse_maxpool(list *options, size_params params)
     int stride = option_find_int(options, "stride",1);
     int size = option_find_int(options, "size",stride);
     int padding = option_find_int_quiet(options, "padding", size-1);
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
 
     int batch,h,w,c;
     h = params.h;
@@ -543,6 +560,7 @@ maxpool_layer parse_maxpool(list *options, size_params params)
     if(!(h && w && c)) error("Layer before maxpool layer must output image.");
 
     maxpool_layer layer = make_maxpool_layer(batch,h,w,c,size,stride,padding);
+    parse_vecsize(&layer, options, params, DEFAULT);
     return layer;
 }
 
@@ -551,15 +569,6 @@ maxpool_layer parse_maxpool_backend(list *options, size_params params, BACKEND b
     int stride = option_find_int(options, "stride",1);
     int size = option_find_int(options, "size",stride);
     int padding = option_find_int_quiet(options, "padding", (size-1)/2);
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
-    if (!(backend == GEMMPLUS || backend == DIRECT))
-    {
-        vectorized = 0;
-        vecsize = 1;
-        devectorize = 0;
-    }
 
     int batch,h,w,c;
     h = params.h;
@@ -568,7 +577,8 @@ maxpool_layer parse_maxpool_backend(list *options, size_params params, BACKEND b
     batch=params.batch;
     if(!(h && w && c)) error("Layer before maxpool layer must output image.");
 
-    maxpool_layer layer = make_maxpool_layer_backend(batch,h,w,c,size,stride,padding, backend, vectorized, vecsize, devectorize);
+    maxpool_layer layer = make_maxpool_layer_backend(batch,h,w,c,size,stride,padding, backend);
+    parse_vecsize(&layer, options, params, backend);
     return layer;
 }
 
@@ -579,12 +589,11 @@ avgpool_layer parse_avgpool(list *options, size_params params)
     h = params.h;
     c = params.c;
     batch=params.batch;
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
     if(!(h && w && c)) error("Layer before avgpool layer must output image.");
 
     avgpool_layer layer = make_avgpool_layer(batch,w,h,c);
+    parse_vecsize(&layer, options, params, DEFAULT);
+
     return layer;
 }
 
@@ -595,19 +604,11 @@ avgpool_layer parse_avgpool_backend(list *options, size_params params, BACKEND b
     h = params.h;
     c = params.c;
     batch=params.batch;
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
-    if (!(backend == GEMMPLUS || backend == DIRECT))
-    {
-        vectorized = 0;
-        vecsize = 1;
-        devectorize = 0;
-    }
 
     if(!(h && w && c)) error("Layer before avgpool layer must output image.");
 
-    avgpool_layer layer = make_avgpool_layer_backend(batch,w,h,c, backend, vectorized, vecsize, devectorize);
+    avgpool_layer layer = make_avgpool_layer_backend(batch,w,h,c, backend);
+    parse_vecsize(&layer, options, params, backend);
     return layer;
 }
 
@@ -643,14 +644,11 @@ layer parse_shortcut(list *options, size_params params, network *net)
     int index = atoi(l);
     if(index < 0) index = params.index + index;
 
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
-
     int batch = params.batch;
     layer from = net->layers[index];
 
     layer s = make_shortcut_layer(batch, index, params.w, params.h, params.c, from.out_w, from.out_h, from.out_c);
+    parse_vecsize(&s, options, params, DEFAULT);
 
     char *activation_s = option_find_str(options, "activation", "linear");
     ACTIVATION activation = get_activation(activation_s);
@@ -666,20 +664,11 @@ layer parse_shortcut_backend(list *options, size_params params, network *net, BA
     int index = atoi(l);
     if(index < 0) index = params.index + index;
 
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
-    if (!(backend == GEMMPLUS || backend == DIRECT))
-    {
-        vectorized = 0;
-        vecsize = 1;
-        devectorize = 0;
-    }
-
     int batch = params.batch;
     layer from = net->layers[index];
 
-    layer s = make_shortcut_layer_backend(batch, index, params.w, params.h, params.c, from.out_w, from.out_h, from.out_c, backend, vectorized, vecsize, devectorize);
+    layer s = make_shortcut_layer_backend(batch, index, params.w, params.h, params.c, from.out_w, from.out_h, from.out_c, backend);
+    parse_vecsize(&s, options, params, backend);
 
     char *activation_s = option_find_str(options, "activation", "linear");
     ACTIVATION activation = get_activation(activation_s);
@@ -728,9 +717,7 @@ layer parse_upsample(list *options, size_params params, network *net)
 
     int stride = option_find_int(options, "stride",2);
     layer l = make_upsample_layer(params.batch, params.w, params.h, params.c, stride);
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
+    parse_vecsize(&l, options, params, DEFAULT);
 
     l.scale = option_find_float_quiet(options, "scale", 1);
     return l;
@@ -741,18 +728,7 @@ layer parse_upsample_backend(list *options, size_params params, network *net, BA
 
     int stride = option_find_int(options, "stride",2);
     layer l = make_upsample_layer_backend(params.batch, params.w, params.h, params.c, stride, backend);
-    int vectorized = option_find_int_quiet(options, "vectorized", 1);
-    int vecsize = option_find_int_quiet(options, "vecsize", 8);
-    int devectorize = option_find_int_quiet(options, "devectorize", 0);
-    if (!(backend == GEMMPLUS || backend == DIRECT))
-    {
-        vectorized = 0;
-        vecsize = 1;
-        devectorize = 0;
-    }
-    l.vecsize = vecsize;
-    l.vectorized = vectorized;
-    l.devectorize = devectorize;
+    parse_vecsize(&l, options, params, backend);
 
     l.scale = option_find_float_quiet(options, "scale", 1);
     return l;
@@ -781,6 +757,7 @@ route_layer parse_route(list *options, size_params params, network *net)
     int batch = params.batch;
 
     route_layer layer = make_route_layer(batch, n, layers, sizes);
+    parse_vecsize(&layer, options, params, DEFAULT);
 
     convolutional_layer first = net->layers[layers[0]];
     layer.out_w = first.out_w;
@@ -796,6 +773,47 @@ route_layer parse_route(list *options, size_params params, network *net)
         }
     }
 
+    return layer;
+}
+
+route_layer parse_route_backend(list *options, size_params params, network *net, BACKEND backend)
+{
+    char *l = option_find(options, "layers");
+    int len = strlen(l);
+    if(!l) error("Route Layer must specify input layers");
+    int n = 1;
+    int i;
+    for(i = 0; i < len; ++i){
+        if (l[i] == ',') ++n;
+    }
+    int *layers = calloc(n, sizeof(int));
+    int *sizes = calloc(n, sizeof(int));
+    for(i = 0; i < n; ++i){
+        int index = atoi(l);
+        l = strchr(l, ',')+1;
+        if(index < 0) index = params.index + index;
+        layers[i] = index;
+        sizes[i] = net->layers[index].outputs;
+    }
+    int batch = params.batch;
+
+    route_layer layer = make_route_layer_backend(batch, n, layers, sizes, backend);
+    
+
+    convolutional_layer first = net->layers[layers[0]];
+    layer.out_w = first.out_w;
+    layer.out_h = first.out_h;
+    layer.out_c = first.out_c;
+    for(i = 1; i < n; ++i){
+        int index = layers[i];
+        convolutional_layer next = net->layers[index];
+        if(next.out_w == first.out_w && next.out_h == first.out_h){
+            layer.out_c += next.out_c;
+        }else{
+            layer.out_h = layer.out_w = layer.out_c = 0;
+        }
+    }
+    parse_vecsize(&layer, options, params, backend);
     return layer;
 }
 
@@ -1057,6 +1075,15 @@ network *parse_network_cfg_backend(char *filename, BACKEND backend)
     net->gpu_index = gpu_index;
     size_params params;
 
+    if (backend == XNNPACK)
+    {
+        net->xnnpack_threadpool = xnnpack_pthreadpool_create();
+        if(net->xnnpack_threadpool == NULL)
+        {
+            error("Xnnpack ptrheadpool creation failed.\n");
+        }
+    }
+
     section *s = (section *)n->val;
     list *options = s->options;
     if(!is_network(s)) error("First section must be [net] or [network]");
@@ -1130,7 +1157,7 @@ network *parse_network_cfg_backend(char *filename, BACKEND backend)
         }else if(lt == AVGPOOL){
             l = parse_avgpool_backend(options, params, backend);
         }else if(lt == ROUTE){
-            l = parse_route(options, params, net);
+            l = parse_route_backend(options, params, net, backend);
         }else if(lt == UPSAMPLE){
             l = parse_upsample_backend(options, params, net, backend);
         }else if(lt == SHORTCUT){
@@ -1690,6 +1717,31 @@ void vectorize_weights_gemm(layer l, float* filterIn)
     }
 }
 
+void NCHWtoNHWC_weights(layer l, float* input)
+{
+    // printf("NCHWtoNHWC_weights Called.\n");
+    // printf("Batch: %d, n: %d, Out_c: %d, Out_h: %d, Out_w: %d, In_c: %d, filter size: %d Groups: %d, Vecsize: %d\n"
+    // , l.batch, l.n, l.out_c, l.out_h, l.out_w, l.c, l.size, l.groups, l.vecsize);
+    float *out = l.weights;
+    for (int bIdx = 0; bIdx < l.n/l.groups; bIdx++)
+    {
+        for (int cIdx = 0; cIdx < l.c; cIdx++)
+        {
+            float *saveTarget = out + bIdx * l.c * l.size * l.size + cIdx;
+            float *loadTarget = input + bIdx * l.c * l.size * l.size + cIdx * l.size * l.size;
+            for (int hIdx = 0; hIdx < l.size; hIdx++)
+            {
+                for (int wIdx = 0; wIdx < l.size; wIdx++)
+                {
+                    *(saveTarget) = *(loadTarget);
+                    saveTarget += l.c;
+                    loadTarget += 1;
+                }
+            }
+        }
+    }
+}
+
 void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
 {
     if(l.binary){
@@ -1735,6 +1787,13 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
         float* tmp = (float*)malloc(num*sizeof(float));
         fread(tmp, sizeof(float), num, fp);
         vectorize_weights_gemm(l, tmp);
+        free(tmp);
+    }
+    else if ((backend == XNNPACK || backend == ARMNN) && l.groups == 1)
+    {
+        float* tmp = (float*)malloc(num*sizeof(float));
+        fread(tmp, sizeof(float), num, fp);
+        NCHWtoNHWC_weights(l, tmp);
         free(tmp);
     }
     else

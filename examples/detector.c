@@ -594,7 +594,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 
         float *X = sized.data;
         time=what_time_is_it_now();
-        float *results = network_predict(net, X);
+        network_predict(net, X);
 
         printf("%s: Predicted in %f seconds.\n", input, what_time_is_it_now()-time);
         int nboxes = 0;
@@ -668,19 +668,24 @@ void test_detector_backend(char *datacfg, char *cfgfile, char *weightfile, char 
         if(printVals)
         {
             printf("Size: %d\n", net->outputs);
+            int idx = 0;
             for (int i = 0; i < 20; i++)
             {
                 for (int j = 0; j < 12; j++)
                 {
-                    int idx = i*12*31 + j*31;
+                    idx += 23;
                     if (idx < net->outputs)
                     {
                         printf("%3.2f\t", *(results + idx));
-                    }   
+                    }
                 }
-                printf("\n");
+                if (idx < net->outputs)
+                {
+                    printf("\n");
+                }
             }
         }
+        printf("\n");
         
         printf("%s: Predicted in %f seconds.\n", input, what_time_is_it_now()-time);
         int nboxes = 0;

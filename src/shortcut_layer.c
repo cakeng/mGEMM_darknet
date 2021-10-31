@@ -41,7 +41,7 @@ layer make_shortcut_layer(int batch, int index, int w, int h, int c, int w2, int
     #endif
     return l;
 }
-layer make_shortcut_layer_backend(int batch, int index, int w, int h, int c, int w2, int h2, int c2, BACKEND backend, int vectorized, int vecsize, int devectorize)
+layer make_shortcut_layer_backend(int batch, int index, int w, int h, int c, int w2, int h2, int c2, BACKEND backend)
 {
     fprintf(stderr, "res  %3d                %4d x%4d x%4d   ->  %4d x%4d x%4d\n",index, w2,h2,c2, w,h,c);
     layer l = {0};
@@ -55,9 +55,6 @@ layer make_shortcut_layer_backend(int batch, int index, int w, int h, int c, int
     l.out_c = c;
     l.outputs = w*h*c;
     l.inputs = l.outputs;
-    l.vecsize = vecsize;
-    l.vectorized = vectorized;
-    l.devectorize = devectorize;
 
     l.index = index;
 

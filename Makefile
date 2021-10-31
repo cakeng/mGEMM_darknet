@@ -21,7 +21,7 @@ CPP=g++
 AR=ar
 ARFLAGS=rcs
 OPTS=-Ofast
-LDFLAGS= -L. -lm -pthread -lptmm -lopenblas
+LDFLAGS= -L. -lm -pthread -lptmm -lopenblas -lXNNPACK -lpthreadpool -lcpuinfo -lclog
 COMMON= -Iinclude/ -Isrc/
 CFLAGS=-Wall -Wno-unused-result -Wno-unknown-pragmas -Wfatal-errors -fPIC
 CPPFLAGS=-Wall -Wno-unknown-pragmas -Wfatal-errors -fPIC
@@ -44,7 +44,7 @@ EXECOBJ = $(addprefix $(OBJDIR), $(EXECOBJA))
 OBJS = $(addprefix $(OBJDIR), $(OBJ))
 DEPS = $(wildcard src/*.h) Makefile include/darknet.h
 
-all: obj backup results $(SLIB) $(ALIB) $(EXEC)
+all: obj backup results $(EXEC)
 #all: obj  results $(SLIB) $(ALIB) $(EXEC)
 
 

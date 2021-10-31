@@ -1334,6 +1334,7 @@ image load_image_stb(char *filename, int channels)
             }
         }
     }
+
     free(data);
     return im;
 }

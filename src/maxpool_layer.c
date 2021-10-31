@@ -53,7 +53,7 @@ maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int s
 }
 
 
-maxpool_layer make_maxpool_layer_backend(int batch, int h, int w, int c, int size, int stride, int padding, BACKEND backend, int vectorized, int vecsize, int devectorize)
+maxpool_layer make_maxpool_layer_backend(int batch, int h, int w, int c, int size, int stride, int padding, BACKEND backend)
 {
     maxpool_layer l = {0};
     l.type = MAXPOOL;
@@ -69,9 +69,7 @@ maxpool_layer make_maxpool_layer_backend(int batch, int h, int w, int c, int siz
     l.inputs = h*w*c;
     l.size = size;
     l.stride = stride;
-    l.vecsize = vecsize;
-    l.vectorized = vectorized;
-    l.devectorize = devectorize;
+
     int output_size = l.out_h * l.out_w * l.out_c * batch;
     l.indexes = calloc(output_size, sizeof(int));
     l.output =  calloc(output_size, sizeof(float));

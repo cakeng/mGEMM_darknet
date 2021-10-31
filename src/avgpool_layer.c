@@ -30,7 +30,7 @@ avgpool_layer make_avgpool_layer(int batch, int w, int h, int c)
     return l;
 }
 
-avgpool_layer make_avgpool_layer_backend(int batch, int w, int h, int c, BACKEND backend, int vectorized, int vecsize,  int devectorize)
+avgpool_layer make_avgpool_layer_backend(int batch, int w, int h, int c, BACKEND backend)
 {
     fprintf(stderr, "avg                     %4d x%4d x%4d   ->  %4d\n",  w, h, c, c);
     avgpool_layer l = {0};
@@ -44,9 +44,6 @@ avgpool_layer make_avgpool_layer_backend(int batch, int w, int h, int c, BACKEND
     l.out_c = c;
     l.outputs = l.out_c;
     l.inputs = h*w*c;
-    l.vecsize = vecsize;
-    l.vectorized = vectorized;
-    l.devectorize = devectorize;
     int output_size = l.outputs * batch;
     l.output =  calloc(output_size, sizeof(float));
     l.delta =   calloc(output_size, sizeof(float));

@@ -189,6 +189,11 @@ struct layer{
     int vecsize;
     int devectorize;
 
+    void* xnnpack_op;
+    void* xnnpack_pthreadpool;
+    float* prev_output;
+    float* zeros;
+
     float alpha;
     float beta;
     float kappa;
@@ -462,6 +467,8 @@ typedef struct network{
     int   *steps;
     int num_steps;
     int burn_in;
+
+    void* xnnpack_threadpool;
 
     int adam;
     float B1;

@@ -9,7 +9,7 @@
 typedef layer avgpool_layer;
 
 image get_avgpool_image(avgpool_layer l);
- avgpool_layer make_avgpool_layer_backend(int batch, int w, int h, int c, BACKEND backend, int vectorized, int vecsize,  int devectorize);
+ avgpool_layer make_avgpool_layer_backend(int batch, int w, int h, int c, BACKEND backend);
 avgpool_layer make_avgpool_layer(int batch, int w, int h, int c);
 void resize_avgpool_layer(avgpool_layer *l, int w, int h);
  void forward_avgpool_layer_vectorized(const avgpool_layer l, network net);

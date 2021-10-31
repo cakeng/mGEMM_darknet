@@ -587,10 +587,10 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
         }
         image im = load_image_color(input, 0, 0);
 
-        // image r = letterbox_image(im, net->w, net->h);
+        image r = letterbox_image(im, net->w, net->h);
 
         //For MobileNet v2
-		image r = resize_image(im, net->w, net->h);
+		// image r = resize_image(im, net->w, net->h);
 
         //image r = resize_min(im, 320);
         //printf("%d %d\n", r.w, r.h);
@@ -601,23 +601,12 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
         time=clock();
         float *predictions = network_predict(net, X);
         printf("Size: %d\n", net->outputs);
-        for (int i = 0; i < 20; i++)
-        {
-            for (int j = 0; j < 12; j++)
-            {
-                int idx = i*12*31 + j*31;
-                if (idx < net->outputs)
-                {
-                    printf("%3.2f\t", *(predictions + idx));
-                }   
-            }
-            printf("\n");
-        }
+        
         if(net->hierarchy) hierarchy_predictions(predictions, net->outputs, net->hierarchy, 1, 1);
         top_k(predictions, net->outputs, top, indexes);
         fprintf(stderr, "%s: Predicted in %f seconds.\n", input, sec(clock()-time));
         for(i = 0; i < top; ++i){
-            int index = indexes[i]%1000;
+            int index = indexes[i]%net->outputs;
             //if(net->hierarchy) printf("%d, %s: %f, parent: %s \n",index, names[index], predictions[index], (net->hierarchy->parent[index] >= 0) ? names[net->hierarchy->parent[index]] : "Root");
             //else printf("%s: %f\n",names[index], predictions[index]);
             printf("%5.2f%%: %s\n", predictions[index]*100, names[index]);
@@ -628,7 +617,7 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
     }
 }
 
-void predict_classifier_backend(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top, BACKEND backend)
+void predict_classifier_backend(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top, BACKEND backend, int printvals)
 {
     network *net = load_network_backend(cfgfile, weightfile, 0, backend);
     set_batch_network(net, 1);
@@ -659,9 +648,9 @@ void predict_classifier_backend(char *datacfg, char *cfgfile, char *weightfile, 
         image im = load_image_color(input, 0, 0);
 
 		//Original
-        image r = letterbox_image(im, net->w, net->h);
+        // image r = letterbox_image(im, net->w, net->h);
 		//For MobileNet v2
-		// image r = resize_image(im, net->w, net->h);
+		image r = resize_image(im, net->w, net->h);
 
 		//resize_network(net, r.w, r.h);
         //printf("%d %d\n", r.w, r.h);
@@ -678,19 +667,29 @@ void predict_classifier_backend(char *datacfg, char *cfgfile, char *weightfile, 
 
         time=clock();
         float *predictions = network_predict(net, X);
-        printf("Size: %d\n", net->outputs);
-        for (int i = 0; i < 20; i++)
+
+        if(printvals)
         {
-            for (int j = 0; j < 12; j++)
+            printf("Size: %d\n", net->outputs);
+            int idx = 0;
+            for (int i = 0; i < 20; i++)
             {
-                int idx = i*12*31 + j*31;
+                for (int j = 0; j < 12; j++)
+                {
+                    idx += 23;
+                    if (idx < net->outputs)
+                    {
+                        printf("%3.2f\t", *(predictions + idx));
+                    }
+                }
                 if (idx < net->outputs)
                 {
-                    printf("%3.2f\t", *(predictions + idx));
-                }   
+                    printf("\n");
+                }
             }
-            printf("\n");
         }
+        printf("\n");
+
         if(net->hierarchy) hierarchy_predictions(predictions, net->outputs, net->hierarchy, 1, 1);
         top_k(predictions, net->outputs, top, indexes);
         fprintf(stderr, "%s: Predicted in %f seconds.\n", input, sec(clock()-time));
@@ -1174,8 +1173,9 @@ void run_classifier(int argc, char **argv)
     char *weights = (argc > 5) ? argv[5] : 0;
     char *filename = (argc > 6) ? argv[6]: 0;
     char *back = (argc > 7) ? argv[7]: 0;
-    char *layer_s = (argc > 8) ? argv[8]: 0;
-    BACKEND backend;
+    int printVals = (argc > 8) ? atoi(argv[8]): 0;
+    char *layer_s = (argc > 9) ? argv[9]: 0;
+    BACKEND backend = DEFAULT;
     if (back)
     {
         if (0 == strcmp(back, "DEFAULT"))
@@ -1210,7 +1210,7 @@ void run_classifier(int argc, char **argv)
 
     int layer = layer_s ? atoi(layer_s) : -1;
     if(0==strcmp(argv[2], "predict")) predict_classifier(data, cfg, weights, filename, top);
-    else if(0==strcmp(argv[2], "backend")) predict_classifier_backend(data, cfg, weights, filename, top, backend);
+    else if(0==strcmp(argv[2], "backend")) predict_classifier_backend(data, cfg, weights, filename, top, backend, printVals);
     else if(0==strcmp(argv[2], "fout")) file_output_classifier(data, cfg, weights, filename);
     else if(0==strcmp(argv[2], "try")) try_classifier(data, cfg, weights, filename, atoi(layer_s));
     else if(0==strcmp(argv[2], "train")) train_classifier(data, cfg, weights, gpus, ngpus, clear);

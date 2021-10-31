@@ -66,6 +66,17 @@ network *load_network_backend(char *cfg, char *weights, int clear, BACKEND backe
     if(weights && weights[0] != 0){
         load_weights_backend(net, weights, backend);
     }
+    if (backend == XNNPACK)
+    {
+        for(int i = 0; i < net->n; ++i)
+        {
+            if (net->layers[i].type == CONVOLUTIONAL)
+            {
+                make_xnnpack_layer(&(net->layers[i]));
+            }
+        }   
+    }
+
     if(clear) (*net->seen) = 0;
     return net;
 }

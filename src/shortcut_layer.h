@@ -5,7 +5,7 @@
 #include "network.h"
 
 layer make_shortcut_layer(int batch, int index, int w, int h, int c, int w2, int h2, int c2);
-layer make_shortcut_layer_backend(int batch, int index, int w, int h, int c, int w2, int h2, int c2, BACKEND backend, int vectorized, int vecsize, int devectorize);
+layer make_shortcut_layer_backend(int batch, int index, int w, int h, int c, int w2, int h2, int c2, BACKEND backend);
 void forward_shortcut_layer(const layer l, network net);
 void forward_shortcut_layer_backend(const layer l, network net, BACKEND backend);
 void backward_shortcut_layer(const layer l, network net);
