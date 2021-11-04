@@ -106,7 +106,7 @@ float* deVectorizeToNCHW (float* input, int blocks, int channels, int height, in
 void deVectorize (layer l, int toNHWC)
 {
     float* tmp;
-    #ifdef __GEMMPLUS_DEBUG
+    #if __GEMMPLUS_DEBUG
     // printf("Devectorizing...\n");
     // printf("Batch: %d, Out_c: %d, Out_h: %d, Out_w: %d, vectorized: %d, vecsize: %d\n"
         // , l.batch, l.out_c, l.out_h, l.out_w, l.vectorized, l.vecsize);
@@ -125,132 +125,151 @@ void deVectorize (layer l, int toNHWC)
 
 void gemmplus_convolutional_layer(convolutional_layer l, network net)
 {
+    #if __TIME_PRINT
     clock_t time=clock();
+    #endif
     ptmm::ptmm_num_threads = std::thread::hardware_concurrency();
-    // #ifdef __GEMMPLUS_DEBUG
+    // #if __GEMMPLUS_DEBUG
     // printf("GEMMPLUS Wrapper Called.\n");
     // printf("Batch: %d, n: %d, Out_c: %d, Out_h: %d, Out_w: %d, In_c: %d, Depthwise: %d, Vecsize: %d\n"
     //     , l.batch, l.n, l.out_c, l.out_h, l.out_w, l.c, l.groups != 1, l.vecsize);
     // #endif
     ptmm ptmmFilter(0, l.weights, l.out_c, l.c, l.size, l.size, false, l.groups != 1);
 
-    time=clock();    ptmmFilter.conv(net.input, l.output, l.biases, l.batch, l.h, l.w, l.pad, l.stride, 1);
+    ptmmFilter.conv(net.input, l.output, l.biases, l.batch, l.h, l.w, l.pad, l.stride, 1);
+    #if __TIME_PRINT
     printf("%f,", sec(clock()-time));
-
     time=clock();
+    #endif
     activate_array(l.output, l.outputs*l.batch, l.activation);
     if (l.devectorize)
     {
         deVectorize (l, 0);
     }
+    #if __TIME_PRINT
     printf("%f,", sec(clock()-time));
+    #endif
 }
 
 void armnn_convolutional_layer(convolutional_layer l, network net)
 {
-    // using namespace armnn;
-    // // Load graph into runtime
-    // run->LoadNetwork(networkIdentifier, std::move(optNet));
-    // armnn::InputTensors inputTensors{{0, armnn::ConstTensor(run->GetInputTensorInfo(networkIdentifier, 0), input)}};
-    // armnn::OutputTensors armnnOutputTensors{{0, armnn::Tensor(run->GetOutputTensorInfo(networkIdentifier, 0), armnnOutput)}};
+    using namespace armnn;
+    armnn::InputTensors armnnInputTensors{{0, armnn::ConstTensor((*static_cast<IRuntimePtr *>(l.armnn_runtime))->GetInputTensorInfo(l.armnn_network_id, 0), net.input)}};
+    armnn::OutputTensors armnnOutputTensors{{0, armnn::Tensor((*static_cast<IRuntimePtr *>(l.armnn_runtime))->GetOutputTensorInfo(l.armnn_network_id, 0), l.output)}};
 
-    // // Execute network
-    // run->EnqueueWorkload(networkIdentifier, inputTensors, armnnOutputTensors);
+    #if __TIME_PRINT
+    clock_t time=clock();
+    #endif
+    // Execute network
+    (*static_cast<IRuntimePtr *>(l.armnn_runtime))->EnqueueWorkload(l.armnn_network_id, armnnInputTensors, armnnOutputTensors);
+    #if __TIME_PRINT
+    printf("%f,", sec(clock()-time));
+    time=clock();
+    #endif
+    activate_array(l.output, l.outputs*l.batch, l.activation);
+    if (l.devectorize)
+    {
+        deVectorize (l, 0);
+    }
+    #if __TIME_PRINT
+    printf("%f,", sec(clock()-time));
+    #endif
 }
 void make_armnn_layer(convolutional_layer* l)
 {
-    // using namespace armnn;
+    using namespace armnn;
 
-    // arm_compute::Scheduler::get().set_num_threads(threadNum);
+    arm_compute::Scheduler::get().set_num_threads(std::thread::hardware_concurrency());
+    // Construct ArmNN network
+    l->armnn_network = (void*)(new INetworkPtr(INetwork::Create()));
+    armnn::NetworkId networkIdentifier;
+    
+    armnn::Convolution2dDescriptor Conv2dDesc;
+    Conv2dDesc.m_PadTop = l->pad;
+    Conv2dDesc.m_PadBottom = l->pad;
+    Conv2dDesc.m_PadRight = l->pad;
+    Conv2dDesc.m_PadLeft = l->pad;
+    Conv2dDesc.m_StrideX = l->stride;
+    Conv2dDesc.m_StrideY = l->stride;
+    Conv2dDesc.m_DilationX = 1;
+    Conv2dDesc.m_DilationY = 1;
+    Conv2dDesc.m_BiasEnabled = true;
+    Conv2dDesc.m_DataLayout = DataLayout::NCHW;
 
-    // // Construct ArmNN network
-    // armnn::NetworkId networkIdentifier;
-    // INetworkPtr myNetwork = INetwork::Create();
+    armnn::DepthwiseConvolution2dDescriptor ConvDepth2dDesc;
+    ConvDepth2dDesc.m_PadTop = l->pad;
+    ConvDepth2dDesc.m_PadBottom = l->pad;
+    ConvDepth2dDesc.m_PadRight = l->pad;
+    ConvDepth2dDesc.m_PadLeft = l->pad;
+    ConvDepth2dDesc.m_StrideX = l->stride;
+    ConvDepth2dDesc.m_StrideY = l->stride;
+    ConvDepth2dDesc.m_DilationX = 1;
+    ConvDepth2dDesc.m_DilationY = 1;
+    ConvDepth2dDesc.m_BiasEnabled = true;
+    ConvDepth2dDesc.m_DataLayout = DataLayout::NCHW;
 
-    // armnn::Convolution2dDescriptor Conv2dDesc;
-    // Conv2dDesc.m_PadTop = padding;
-    // Conv2dDesc.m_PadBottom = padding;
-    // Conv2dDesc.m_PadRight = padding;
-    // Conv2dDesc.m_PadLeft = padding;
-    // Conv2dDesc.m_StrideX = stride;
-    // Conv2dDesc.m_StrideY = stride;
-    // Conv2dDesc.m_DilationX = dilation;
-    // Conv2dDesc.m_DilationY = dilation;
-    // Conv2dDesc.m_BiasEnabled = true;
-    // Conv2dDesc.m_DataLayout = DataLayout::NCHW;
+    TensorInfo weightsInfo;
+    TensorInfo inputTensorInfo;
+    TensorInfo outputTensorInfo;
+    TensorInfo biasInfo(TensorShape({(unsigned int)l->out_c}), DataType::Float32);
 
-    // armnn::DepthwiseConvolution2dDescriptor ConvDepth2dDesc;
-    // ConvDepth2dDesc.m_PadTop = padding;
-    // ConvDepth2dDesc.m_PadBottom = padding;
-    // ConvDepth2dDesc.m_PadRight = padding;
-    // ConvDepth2dDesc.m_PadLeft = padding;
-    // ConvDepth2dDesc.m_StrideX = stride;
-    // ConvDepth2dDesc.m_StrideY = stride;
-    // ConvDepth2dDesc.m_DilationX = dilation;
-    // ConvDepth2dDesc.m_DilationY = dilation;
-    // ConvDepth2dDesc.m_BiasEnabled = true;
-    // ConvDepth2dDesc.m_DataLayout = DataLayout::NCHW;
+    bool del = false;
+    float *filter;
+    float *input;
 
-    // TensorInfo weightsInfo;
-    // TensorInfo inputTensorInfo;
-    // TensorInfo outputTensorInfo;
-    // TensorInfo biasInfo(TensorShape({testBlocks}), DataType::Float32);
+    // For NHWC
+    if (l->groups == 1)
+    {
+        weightsInfo = TensorInfo(TensorShape({(unsigned int)l->out_c/l->groups, (unsigned int)l->size, (unsigned int)l->size, (unsigned int)l->c}), DataType::Float32);
+        Conv2dDesc.m_DataLayout = DataLayout::NHWC;
+    }
+    else
+    {
+        weightsInfo = TensorInfo(TensorShape({(unsigned int)l->out_c/l->groups, (unsigned int)l->c, (unsigned int)l->size, (unsigned int)l->size}), DataType::Float32);
+        ConvDepth2dDesc.m_DataLayout = DataLayout::NHWC;
+    }
+    inputTensorInfo = TensorInfo(TensorShape({(unsigned int)l->batch, (unsigned int)l->h, (unsigned int)l->w, (unsigned int)l->c}), DataType::Float32);
+    outputTensorInfo = TensorInfo(TensorShape({(unsigned int)l->batch, (unsigned int)l->out_h, (unsigned int)l->out_w, (unsigned int)l->out_c}), DataType::Float32);
 
-    // bool del = false;
-    // float *filter;
-    // float *input;
+    armnn::ConstTensor bias(biasInfo, l->biases);
+    armnn::ConstTensor weights(weightsInfo, l->weights);
+    IConnectableLayer *convLayer;
+    if (l->groups == 1)
+    {
+        convLayer = (*static_cast<INetworkPtr *>(l->armnn_network))->AddConvolution2dLayer(Conv2dDesc, weights, bias, "Armnn Conv2d");
+    }
+    else
+    {
+        convLayer = (*static_cast<INetworkPtr *>(l->armnn_network))->AddDepthwiseConvolution2dLayer(ConvDepth2dDesc, weights, bias, "Armnn Conv2d Depthwise");
+    }
+    IConnectableLayer *InputLayer = (*static_cast<INetworkPtr *>(l->armnn_network))->AddInputLayer(0);
+    IConnectableLayer *OutputLayer = (*static_cast<INetworkPtr *>(l->armnn_network))->AddOutputLayer(0);
 
-    // // For NHWC
-    // if (depthwise == 0)
-    // {
-    //     weightsInfo = TensorInfo(TensorShape({testBlocks, testFilHeight, testFilWidth, testChannels}), DataType::Float32);
-    //     filter = testFilterTensorNHWC;
-    //     Conv2dDesc.m_DataLayout = DataLayout::NHWC;
-    // }
-    // else
-    // {
-    //     weightsInfo = TensorInfo(TensorShape({1, testChannels, testFilHeight, testFilWidth}), DataType::Float32);
-    //     filter = testFilterTensorNHWC;
-    //     ConvDepth2dDesc.m_DataLayout = DataLayout::NHWC;
-    // }
-    // input = testInputTensorNHWC;
-    // inputTensorInfo = TensorInfo(TensorShape({testBatch, testHeight, testWidth, testChannels}), DataType::Float32);
-    // outputTensorInfo = TensorInfo(TensorShape({testBatch, testHout, testWout, testBlocks}), DataType::Float32);
+    InputLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(0));
+    convLayer->GetOutputSlot(0).Connect(OutputLayer->GetInputSlot(0));
 
-    // armnn::ConstTensor bias(biasInfo, testBiasTensor);
-    // armnn::ConstTensor weights(weightsInfo, filter);
-    // IConnectableLayer *convLayer;
-    // if (depthwise == 0)
-    // {
-    //     convLayer = myNetwork->AddConvolution2dLayer(Conv2dDesc, weights, bias, "Armnn Conv2d");
-    // }
-    // else
-    // {
-    //     convLayer = myNetwork->AddDepthwiseConvolution2dLayer(ConvDepth2dDesc, weights, bias, "Armnn Conv2d Depthwise");
-    // }
-    // IConnectableLayer *InputLayer = myNetwork->AddInputLayer(0);
-    // IConnectableLayer *OutputLayer = myNetwork->AddOutputLayer(0);
+    //Set the tensors in the network.
+    InputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+    convLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
 
-    // InputLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(0));
-    // convLayer->GetOutputSlot(0).Connect(OutputLayer->GetInputSlot(0));
+    l->armnn_opnet = (void*)(new IOptimizedNetworkPtr(Optimize(*(*static_cast<INetworkPtr *>(l->armnn_network)), {Compute::CpuAcc}, (*static_cast<IRuntimePtr *>(l->armnn_runtime))->GetDeviceSpec())));
 
-    // // Create ArmNN runtime
-    // IRuntime::CreationOptions options; // default options
-    // IRuntimePtr run = IRuntime::Create(options);
-
-    // //Set the tensors in the network.
-    // InputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
-    // convLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
-
-    // // Optimise ArmNN network
-    // armnn::IOptimizedNetworkPtr optNet = Optimize(*myNetwork, {Compute::CpuAcc}, run->GetDeviceSpec());
-    // if (!optNet)
-    // {
-    //     // This shouldn't happen for this simple sample, with reference backend.
-    //     // But in general usage Optimize could fail if the hardware at runtime cannot
-    //     // support the model that has been provided.
-    //     std::cerr << "Error: Failed to optimise the input network." << std::endl;
-    // }
+    // Optimise ArmNN network
+    if (!(*static_cast<IOptimizedNetworkPtr *>(l->armnn_opnet)))
+    {
+        // This shouldn't happen for this simple sample, with reference backend.
+        // But in general usage Optimize could fail if the hardware at runtime cannot
+        // support the model that has been provided.
+        std::cerr << "Error: Failed to optimise the input network." << std::endl;
+    }
+    (*static_cast<IRuntimePtr *>(l->armnn_runtime))->LoadNetwork(l->armnn_network_id, std::move((*static_cast<IOptimizedNetworkPtr *>(l->armnn_opnet))));
+}
+void* armnn_make_runtime()
+{
+    using namespace armnn;
+    // Create ArmNN runtime
+    IRuntime::CreationOptions options; // default options
+    return (void*)(new IRuntimePtr(IRuntime::Create(options)));
 }
 
 void xnnpack_convolutional_layer(convolutional_layer l, network net)
@@ -258,7 +277,6 @@ void xnnpack_convolutional_layer(convolutional_layer l, network net)
     // printf("XNNPACK Wrapper Called.\n");
     // printf("Batch: %d, n: %d, Out_c: %d, Out_h: %d, Out_w: %d, In_c: %d, Groups: %d, Vecsize: %d\n"
     //     , l.batch, l.n, l.out_c, l.out_h, l.out_w, l.c, l.groups, l.vecsize);
-    clock_t time=clock();
     if (net.xnnpack_threadpool != l.xnnpack_pthreadpool)
     {
         std::cerr << "XNNPACK threadpool assertion failed." << std::endl;
@@ -279,17 +297,22 @@ void xnnpack_convolutional_layer(convolutional_layer l, network net)
             std::cerr << "failed to setup operation #0" << std::endl;
         }
     }
-
+    #if __TIME_PRINT
+    clock_t time=clock();
+    #endif
     xnn_run_operator((xnn_operator_t)l.xnnpack_op, (pthreadpool_t)net.xnnpack_threadpool);
+    #if __TIME_PRINT
     printf("%f,", sec(clock()-time));
-
     time=clock();
+    #endif
     activate_array(l.output, l.outputs*l.batch, l.activation);
     if (l.devectorize)
     {
         deVectorize (l, 0);
     }
+    #if __TIME_PRINT
     printf("%f,", sec(clock()-time));
+    #endif
     
 }
 
@@ -352,7 +375,7 @@ void direct_convolutional_layer(convolutional_layer l, network net)
 
 void openblas_convolutional_layer(convolutional_layer l, network net)
 {
-    // #ifdef __GEMMPLUS_DEBUG
+    // #if __GEMMPLUS_DEBUG
     // printf("OPENBLAS Wrapper Called.\n");
     // #endif
     int i, j;

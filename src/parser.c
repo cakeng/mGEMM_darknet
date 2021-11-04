@@ -265,6 +265,10 @@ convolutional_layer parse_convolutional_backend(list *options, size_params param
         layer.xnnpack_pthreadpool = params.net->xnnpack_threadpool;
         // layer.zeros = (float*)calloc(layer.out_c, sizeof(float));
     }
+    else if (backend == ARMNN)
+    {
+        layer.armnn_runtime = params.net->armnn_runtime;
+    }
 
     layer.flipped = option_find_int_quiet(options, "flipped", 0);
     layer.dot = option_find_float_quiet(options, "dot", 0);
@@ -1082,6 +1086,10 @@ network *parse_network_cfg_backend(char *filename, BACKEND backend)
         {
             error("Xnnpack ptrheadpool creation failed.\n");
         }
+    }
+    else if (backend == ARMNN)
+    {
+        net->armnn_runtime = armnn_make_runtime();
     }
 
     section *s = (section *)n->val;

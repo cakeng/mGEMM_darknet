@@ -23,6 +23,7 @@ extern "C" {
 
 #define SECRET_NUM -1234
 #define __GEMMPLUS_DEBUG 1
+#define __TIME_PRINT 0
 extern int gpu_index;
 
 typedef struct{
@@ -193,6 +194,12 @@ struct layer{
     void* xnnpack_pthreadpool;
     float* prev_output;
     float* zeros;
+
+
+    void* armnn_network;
+    void* armnn_opnet;
+    void* armnn_runtime;
+    int armnn_network_id;
 
     float alpha;
     float beta;
@@ -469,6 +476,7 @@ typedef struct network{
     int burn_in;
 
     void* xnnpack_threadpool;
+    void* armnn_runtime;
 
     int adam;
     float B1;

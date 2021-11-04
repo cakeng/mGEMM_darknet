@@ -20,6 +20,9 @@ void* xnnpack_pthreadpool_create();
 void direct_convolutional_layer(convolutional_layer l, network net);
 void openblas_convolutional_layer(convolutional_layer l, network net);
 
+void make_armnn_layer(convolutional_layer* l);
+void* armnn_make_runtime();
+
 
 #ifdef __cplusplus
 }

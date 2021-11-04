@@ -77,6 +77,16 @@ network *load_network_backend(char *cfg, char *weights, int clear, BACKEND backe
             }
         }   
     }
+    else if (backend == ARMNN)
+    {
+        for(int i = 0; i < net->n; ++i)
+        {
+            if (net->layers[i].type == CONVOLUTIONAL)
+            {
+                make_armnn_layer(&(net->layers[i]));
+            }
+        }  
+    }
 
     if(clear) (*net->seen) = 0;
     return net;
@@ -219,19 +229,25 @@ void forward_network(network *netp)
 #endif
     network net = *netp;
     int i;
+    #if __TIME_PRINT
     printf("Layer,Convolution,Activation,Total\n");
+    #endif
     for(i = 0; i < net.n; ++i){
         net.index = i;
         layer l = net.layers[i];
         if(l.delta){
             fill_cpu(l.outputs * l.batch, 0, l.delta, 1);
         }
+        #if __TIME_PRINT
         printf("Layer %d,",i);
         clock_t time=clock();
+        #endif
         l.forward(l, net);
+        #if __TIME_PRINT
         if(l.type != CONVOLUTIONAL)
             printf(",,");
         printf("%f\n", sec(clock()-time));
+        #endif
         net.input = l.output;
         if(l.truth) {
             net.truth = l.output;
