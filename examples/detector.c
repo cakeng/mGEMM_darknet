@@ -621,7 +621,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
     }
 }
 
-void test_detector_backend(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh, float hier_thresh, char *outfile, int fullscreen, BACKEND backend, int printVals)
+void test_detector_backend(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh, float hier_thresh, char *outfile, int fullscreen, BACKEND backend, int silent, int printVals)
 {
     list *options = read_data_cfg(datacfg);
     char *name_list = option_find_str(options, "names", "data/names.list");
@@ -665,7 +665,7 @@ void test_detector_backend(char *datacfg, char *cfgfile, char *weightfile, char 
         time=what_time_is_it_now();
         float *results = network_predict(net, X);
 
-        if(printVals)
+        if(printVals && !silent)
         {
             printf("Size: %d\n", net->outputs);
             int idx = 0;
@@ -684,16 +684,24 @@ void test_detector_backend(char *datacfg, char *cfgfile, char *weightfile, char 
                     printf("\n");
                 }
             }
+            printf("\n");
         }
-        printf("\n");
         
-        printf("%s: Predicted in %f seconds.\n", input, what_time_is_it_now()-time);
         int nboxes = 0;
         detection *dets = get_network_boxes(net, im.w, im.h, thresh, hier_thresh, 0, 1, &nboxes);
         //printf("%d\n", nboxes);
         //if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
         if (nms) do_nms_sort(dets, nboxes, l.classes, nms);
-        draw_detections(im, dets, nboxes, thresh, names, alphabet, l.classes);
+        if (!silent)
+        {
+            draw_detections(im, dets, nboxes, thresh, names, alphabet, l.classes);
+            printf("%s: Predicted in %f seconds.\n", input, what_time_is_it_now()-time);
+        }
+        else
+        {
+            draw_detections_silent(im, dets, nboxes, thresh, names, alphabet, l.classes);
+            printf("%f", what_time_is_it_now()-time);
+        }
         free_detections(dets, nboxes);
         if(outfile){
             save_image(im, outfile);
@@ -926,7 +934,8 @@ void run_detector(int argc, char **argv)
     char *weights = (argc > 5) ? argv[5] : 0;
     char *filename = (argc > 6) ? argv[6]: 0;
     char *back = (argc > 7) ? argv[7]: 0;
-    int printVals = (argc > 8) ? atoi(argv[8]): 0;
+    int silent = (argc > 8) ? atoi(argv[8]): 0;
+    int printVals = (argc > 9) ? atoi(argv[9]): 0;
     BACKEND backend = DEFAULT;
     if (back)
     {
@@ -961,7 +970,7 @@ void run_detector(int argc, char **argv)
     }
 
     if(0==strcmp(argv[2], "test")) test_detector(datacfg, cfg, weights, filename, thresh, hier_thresh, outfile, fullscreen);
-    else if(0==strcmp(argv[2], "backend")) test_detector_backend(datacfg, cfg, weights, filename, thresh, hier_thresh, outfile, fullscreen, backend, printVals);
+    else if(0==strcmp(argv[2], "backend")) test_detector_backend(datacfg, cfg, weights, filename, thresh, hier_thresh, outfile, fullscreen, backend, silent, printVals);
     else if(0==strcmp(argv[2], "train")) train_detector(datacfg, cfg, weights, gpus, ngpus, clear);
     else if(0==strcmp(argv[2], "valid")) validate_detector(datacfg, cfg, weights, outfile);
     else if(0==strcmp(argv[2], "valid2")) validate_detector_flip(datacfg, cfg, weights, outfile);
