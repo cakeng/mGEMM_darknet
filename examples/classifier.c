@@ -645,15 +645,18 @@ void predict_classifier_backend(char *datacfg, char *cfgfile, char *weightfile, 
             if(!input) return;
             strtok(input, "\n");
         }
-        image im = load_image_color(input, 0, 0);
-
-		//Original
-        // image r = letterbox_image(im, net->w, net->h);
-		//For MobileNet v2
-		image r = resize_image(im, net->w, net->h);
-
-		//resize_network(net, r.w, r.h);
-        //printf("%d %d\n", r.w, r.h);
+        image im;
+        image r;
+        if (!strncmp("mobilenetv2", weightfile, 11))
+        {
+            im = load_image_color(input, 0, 1234);
+            r = resize_image(im, net->w, net->h);
+        }
+        else
+        {
+            im = load_image_color(input, 0, 0);
+            r = letterbox_image(im, net->w, net->h);
+        }
 
         float *X;
         if (backend != DEFAULT && backend != OPENBLAS)

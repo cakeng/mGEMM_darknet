@@ -65,7 +65,14 @@ layer make_upsample_layer_backend(int batch, int w, int h, int c, int stride, BA
     l.delta =  calloc(l.outputs*batch, sizeof(float));
     l.output = calloc(l.outputs*batch, sizeof(float));;
 
-    l.forward = forward_upsample_layer_vectorized;
+    if (backend != DEFAULT || backend != OPENBLAS)
+    {
+        l.forward = forward_upsample_layer_vectorized;
+    }
+    else
+    {
+        l.forward = forward_upsample_layer;
+    }
     l.backward = backward_upsample_layer;
     #ifdef GPU
     l.forward_gpu = forward_upsample_layer_gpu;

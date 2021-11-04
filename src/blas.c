@@ -179,8 +179,8 @@ void normalize_cpu_vectorized(float *x, float *mean, float *variance, int batch,
 {
     int b, f, i;
     for(b = 0; b < batch; ++b){
-        for(f = 0; f < filters; ++f){
-            for(i = 0; i < spatial; ++i){
+        for(i = 0; i < spatial; ++i){
+            for(f = 0; f < filters; ++f){
                 int index = b*filters*spatial + (f/vecsize)*spatial*vecsize + i*vecsize + (f%vecsize);
                 x[index] = (x[index] - mean[f])/(sqrt(variance[f]) + .000001f);
             }

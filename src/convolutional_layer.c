@@ -562,8 +562,8 @@ void add_bias_vectorized(float *output, float *biases, int batch, int n, int siz
 {
     int i,j,b;
     for(b = 0; b < batch; ++b){
-        for(i = 0; i < n; ++i){
-            for(j = 0; j < size; ++j){
+        for(j = 0; j < size; ++j){
+            for(i = 0; i < n; ++i){
                 output[(b*n + (i/vecsize))*size*vecsize + j*vecsize + (i%vecsize)] += biases[i];
             }
         }
@@ -574,8 +574,8 @@ void scale_bias_vectorized(float *output, float *scales, int batch, int n, int s
 {
     int i,j,b;
     for(b = 0; b < batch; ++b){
-        for(i = 0; i < n; ++i){
-            for(j = 0; j < size; ++j){
+        for(j = 0; j < size; ++j){
+            for(i = 0; i < n; ++i){
                 output[(b*n + (i/vecsize))*size*vecsize + j*vecsize + (i%vecsize)] *= scales[i];
             }
         }

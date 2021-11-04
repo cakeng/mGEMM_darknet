@@ -263,7 +263,7 @@ convolutional_layer parse_convolutional_backend(list *options, size_params param
     if(backend == XNNPACK)
     {
         layer.xnnpack_pthreadpool = params.net->xnnpack_threadpool;
-        layer.zeros = (float*)calloc(layer.out_c, sizeof(float));
+        // layer.zeros = (float*)calloc(layer.out_c, sizeof(float));
     }
 
     layer.flipped = option_find_int_quiet(options, "flipped", 0);
@@ -1689,7 +1689,6 @@ void vectorize_weights_gemm(layer l, float* filterIn)
     }
     else
     {
-        int block = blocksIn;
         bzero (l.weights, height*width*channels*sizeof(float));
         //printf ("Creating ptmm filter with COUTB1 %d.\n", l.vecsize);
         for (int c = 0; c < channels; c++)
@@ -1742,6 +1741,23 @@ void NCHWtoNHWC_weights(layer l, float* input)
     }
 }
 
+void fold_batchnorm (float* weight, float* bias, float* scales, float* mean, float* variance, int cout, int cin, int spatial)
+{   
+    for (int co = 0; co < cout; co++)
+    {
+        float scale = scales[co] / (sqrt(variance[co]) + .000001f);
+        for (int ci = 0; ci < cin; ci++)
+        {
+            for (int i = 0; i < spatial; i++)
+            {
+                int index = co*cin*spatial + ci*spatial + i; // NCHW
+                weight[index] = weight[index] * scale;
+            }
+        }
+        bias[co] = bias[co] - (mean[co] * scale);
+    }
+}
+
 void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
 {
     if(l.binary){
@@ -1786,6 +1802,11 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
     {
         float* tmp = (float*)malloc(num*sizeof(float));
         fread(tmp, sizeof(float), num, fp);
+        if (l.batch_normalize)
+        {
+            fold_batchnorm(tmp, l.biases, l.scales, l.rolling_mean, l.rolling_variance, l.n, l.c/l.groups, l.size*l.size);
+        }
+        
         vectorize_weights_gemm(l, tmp);
         free(tmp);
     }
@@ -1793,12 +1814,20 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
     {
         float* tmp = (float*)malloc(num*sizeof(float));
         fread(tmp, sizeof(float), num, fp);
+        if (l.batch_normalize)
+        {
+            fold_batchnorm(tmp, l.biases, l.scales, l.rolling_mean, l.rolling_variance, l.n, l.c/l.groups, l.size*l.size);
+        }
         NCHWtoNHWC_weights(l, tmp);
         free(tmp);
     }
     else
     {
         fread(l.weights, sizeof(float), num, fp);
+        if (backend != DEFAULT && l.batch_normalize)
+        {
+            fold_batchnorm(l.weights, l.biases, l.scales, l.rolling_mean, l.rolling_variance, l.n, l.c/l.groups, l.size*l.size);
+        }
     }
 
     if (l.flipped) {

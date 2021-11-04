@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <assert.h>
+#include <sys/time.h>
 #include "network.h"
 #include "image.h"
 #include "data.h"
@@ -218,13 +219,19 @@ void forward_network(network *netp)
 #endif
     network net = *netp;
     int i;
+    printf("Layer,Convolution,Activation,Total\n");
     for(i = 0; i < net.n; ++i){
         net.index = i;
         layer l = net.layers[i];
         if(l.delta){
             fill_cpu(l.outputs * l.batch, 0, l.delta, 1);
         }
+        printf("Layer %d,",i);
+        clock_t time=clock();
         l.forward(l, net);
+        if(l.type != CONVOLUTIONAL)
+            printf(",,");
+        printf("%f\n", sec(clock()-time));
         net.input = l.output;
         if(l.truth) {
             net.truth = l.output;

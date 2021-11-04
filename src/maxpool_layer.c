@@ -74,7 +74,15 @@ maxpool_layer make_maxpool_layer_backend(int batch, int h, int w, int c, int siz
     l.indexes = calloc(output_size, sizeof(int));
     l.output =  calloc(output_size, sizeof(float));
     l.delta =   calloc(output_size, sizeof(float));
-    l.forward = forward_maxpool_layer_vectorized;
+    if (backend != DEFAULT || backend != OPENBLAS)
+    {
+        l.forward = forward_maxpool_layer_vectorized;
+    }
+    else
+    {
+        l.forward = forward_maxpool_layer;
+    }
+    
     l.backward = backward_maxpool_layer;
     #ifdef GPU
     l.forward_gpu = forward_maxpool_layer_gpu;
@@ -131,9 +139,9 @@ void forward_maxpool_layer_vectorized(const maxpool_layer l, network net)
     // #endif
 
     for(b = 0; b < l.batch; ++b){
-        for(k = 0; k < c; ++k){
-            for(i = 0; i < h; ++i){
-                for(j = 0; j < w; ++j){
+        for(i = 0; i < h; ++i){
+            for(j = 0; j < w; ++j){
+                for(k = 0; k < c; ++k){
                     int out_index = (k%l.vecsize) + (j + w*i + w*h*(k/l.vecsize))*l.vecsize + w*h*c*b;
                     float max = -FLT_MAX;
                     int max_i = -1;

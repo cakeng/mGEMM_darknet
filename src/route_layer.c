@@ -58,8 +58,15 @@ route_layer make_route_layer_backend(int batch, int n, int *input_layers, int *i
     l.inputs = outputs;
     l.delta =  calloc(outputs*batch, sizeof(float));
     l.output = calloc(outputs*batch, sizeof(float));;
-
-    l.forward = forward_route_layer_vectorized;
+    if (backend != DEFAULT || backend != OPENBLAS)
+    {
+        l.forward = forward_route_layer_vectorized;
+    }
+    else
+    {
+        l.forward = forward_route_layer;
+    }
+    
     l.backward = backward_route_layer;
     #ifdef GPU
     l.forward_gpu = forward_route_layer_gpu;
