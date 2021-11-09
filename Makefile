@@ -1,4 +1,4 @@
-OPENMP=1
+OPENMP=0
 DEBUG=0
 
 ARCH= -gencode arch=compute_30,code=sm_30 \
@@ -21,7 +21,7 @@ CPP=g++
 AR=ar
 ARFLAGS=rcs
 OPTS=-Ofast
-LDFLAGS= -L./libs/ -lm -pthread -lptmm -lopenblas -lXNNPACK -lpthreadpool -lcpuinfo -lclog -larmnn
+LDFLAGS= -L./libs/ -lm -pthread -lptmm -lopenblas -lXNNPACK -lpthreadpool -lcpuinfo -lclog -larmnn -landroid -llog
 COMMON= -Iinclude/ -Isrc/
 CFLAGS=-Wall -Wno-unused-result -Wno-unknown-pragmas -Wfatal-errors -fPIC
 CPPFLAGS=-Wall -Wno-unknown-pragmas -Wfatal-errors -fPIC

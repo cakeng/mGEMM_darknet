@@ -1,0 +1,2 @@
+/usr/bin/ar qc libptmm.a  CMakeFiles/ptmm.dir/ptmm.cpp.o
+/usr/bin/ranlib libptmm.a

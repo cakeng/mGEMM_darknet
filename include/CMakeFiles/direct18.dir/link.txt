@@ -1,0 +1,2 @@
+/usr/bin/ar qc libdirect18.a  CMakeFiles/direct18.dir/direct18.cpp.o
+/usr/bin/ranlib libdirect18.a

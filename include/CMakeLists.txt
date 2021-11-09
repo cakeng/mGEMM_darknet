@@ -1,0 +1,8 @@
+add_library(ptmm ptmm.cpp)
+add_library(direct18 direct18.cpp)
+add_library(comp comp.cpp)
+target_include_directories(ptmm PUBLIC ./)
+target_include_directories(direct18 PUBLIC ./)
+target_include_directories(comp PUBLIC ./)
+set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=cortex-a76 -Ofast -pthread")
