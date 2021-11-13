@@ -16,6 +16,7 @@
 #include <arm_compute/runtime/Scheduler.h>
 #include "extern_libs.h"
 #include "ptmm.h"
+#include <direct18.h>
 extern "C"
 {
     #include <sys/time.h>
@@ -30,6 +31,33 @@ float *NCHWtoNHWC(float *input, int blocks, int channels, int height, int width)
 {
     float *out = nullptr;
     if (posix_memalign((void **)(&out), 128, blocks * channels * height * width * sizeof(float)))
+    {
+        printf("Test input NHWC - POSIX memalign failed.");
+    }
+    for (int bIdx = 0; bIdx < blocks; bIdx++)
+    {
+        for (int cIdx = 0; cIdx < channels; cIdx++)
+        {
+            float *saveTarget = out + bIdx * channels * height * width + cIdx;
+            float *loadTarget = input + bIdx * channels * height * width + cIdx * height * width;
+            for (int hIdx = 0; hIdx < height; hIdx++)
+            {
+                for (int wIdx = 0; wIdx < width; wIdx++)
+                {
+                    *(saveTarget) = *(loadTarget);
+                    saveTarget += channels;
+                    loadTarget += 1;
+                }
+            }
+        }
+    }
+    return out;
+}
+
+float *NCHWtoNHWC_DIRECT(float *input, int blocks, int channels, int height, int width)
+{
+    float *out = nullptr;
+    if (posix_memalign((void **)(&out), 128, blocks * 8 * height * width * sizeof(float)))
     {
         printf("Test input NHWC - POSIX memalign failed.");
     }
@@ -213,10 +241,6 @@ void make_armnn_layer(convolutional_layer* l)
     TensorInfo outputTensorInfo;
     TensorInfo biasInfo(TensorShape({(unsigned int)l->out_c}), DataType::Float32);
 
-    bool del = false;
-    float *filter;
-    float *input;
-
     // For NHWC
     if (l->groups == 1)
     {
@@ -233,6 +257,7 @@ void make_armnn_layer(convolutional_layer* l)
 
     armnn::ConstTensor bias(biasInfo, l->biases);
     armnn::ConstTensor weights(weightsInfo, l->weights);
+    
     IConnectableLayer *convLayer;
     if (l->groups == 1)
     {
@@ -244,6 +269,9 @@ void make_armnn_layer(convolutional_layer* l)
     }
     IConnectableLayer *InputLayer = (*static_cast<INetworkPtr *>(l->armnn_network))->AddInputLayer(0);
     IConnectableLayer *OutputLayer = (*static_cast<INetworkPtr *>(l->armnn_network))->AddOutputLayer(0);
+
+    free(l->weights);
+    free(l->biases);
 
     InputLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(0));
     convLayer->GetOutputSlot(0).Connect(OutputLayer->GetInputSlot(0));
@@ -263,6 +291,8 @@ void make_armnn_layer(convolutional_layer* l)
         std::cerr << "Error: Failed to optimise the input network." << std::endl;
     }
     (*static_cast<IRuntimePtr *>(l->armnn_runtime))->LoadNetwork(l->armnn_network_id, std::move((*static_cast<IOptimizedNetworkPtr *>(l->armnn_opnet))));
+
+    
 }
 void* armnn_make_runtime()
 {
@@ -345,6 +375,8 @@ void make_xnnpack_layer(convolutional_layer* l)
     {
         std::cerr << "failed to create operation #0 - status: " << status << std::endl;
     }
+    free(l->weights);
+    free(l->biases);
     if (l->prev_output != NULL)
     {
         status = xnn_setup_convolution2d_nhwc_f32(
@@ -371,6 +403,17 @@ void* xnnpack_pthreadpool_create()
 void direct_convolutional_layer(convolutional_layer l, network net)
 {
     printf("DIRECT Wrapper Called.\n");
+    direct18::direct18_num_threads = std::thread::hardware_concurrency();
+
+    direct18 direct18Filter(0, l.weights, l.out_c, l.c, l.size, l.size, false);
+
+    direct18Filter.conv(net.input, l.output, l.biases, l.h, l.w, l.pad, l.stride, 1);
+
+    activate_array(l.output, l.outputs*l.batch, l.activation);
+    if (l.devectorize)
+    {
+        deVectorize (l, 0);
+    }
 }
 
 void openblas_convolutional_layer(convolutional_layer l, network net)

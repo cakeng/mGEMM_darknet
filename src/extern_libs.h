@@ -10,6 +10,7 @@ extern "C"
 typedef layer convolutional_layer;
 
 float *NCHWtoNHWC(float *input, int blocks, int channels, int height, int width);
+float *NCHWtoNHWC_DIRECT(float *input, int blocks, int channels, int height, int width);
 void deVectorize (layer l, int toNHWC);
 
 void gemmplus_convolutional_layer(convolutional_layer l, network net);

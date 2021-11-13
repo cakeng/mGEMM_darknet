@@ -654,7 +654,11 @@ void test_detector_backend(char *datacfg, char *cfgfile, char *weightfile, char 
         layer l = net->layers[net->n-1];
 
         float *X;
-        if (backend != DEFAULT && backend != OPENBLAS)
+        if (backend == DIRECT)
+        {
+            X = NCHWtoNHWC_DIRECT(sized.data, net->batch, net->c, net->h, net->w);
+        }
+        else if (backend != DEFAULT && backend != OPENBLAS)
         {
             X = NCHWtoNHWC(sized.data, net->batch, net->c, net->h, net->w);
         }

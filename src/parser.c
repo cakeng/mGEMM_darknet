@@ -1658,7 +1658,7 @@ void vectorize_weights_gemm(layer l, float* filterIn)
 {
     int depthwise = l.groups != 1;
     int isNHWC = 0;
-    int blocksIn = l.n; 
+    int blocksIn = l.n/l.groups; 
     int channels = l.c;
     int height = l.size;
     int width = l.size;
@@ -1667,7 +1667,6 @@ void vectorize_weights_gemm(layer l, float* filterIn)
     {
         int blocks = ((blocksIn/l.vecsize) + ((blocksIn%l.vecsize) > 0))*l.vecsize;
         bzero (l.weights, blocks*height*width*channels*sizeof(float));
-        //printf ("Creating ptmm filter with COUTB1 %d.\n", l.vecsize);
         for (int b = 0; b < blocksIn; b++)
         {
             for (int c = 0; c < channels; c++)
@@ -1813,8 +1812,10 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
         if (l.batch_normalize)
         {
             fold_batchnorm(tmp, l.biases, l.scales, l.rolling_mean, l.rolling_variance, l.n, l.c/l.groups, l.size*l.size);
+            free(l.scales);
+            free(l.rolling_mean);
+            free(l.rolling_variance);
         }
-        
         vectorize_weights_gemm(l, tmp);
         free(tmp);
     }
@@ -1825,6 +1826,9 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
         if (l.batch_normalize)
         {
             fold_batchnorm(tmp, l.biases, l.scales, l.rolling_mean, l.rolling_variance, l.n, l.c/l.groups, l.size*l.size);
+            free(l.scales);
+            free(l.rolling_mean);
+            free(l.rolling_variance);
         }
         NCHWtoNHWC_weights(l, tmp);
         free(tmp);
@@ -1835,6 +1839,9 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
         if (backend != DEFAULT && l.batch_normalize)
         {
             fold_batchnorm(l.weights, l.biases, l.scales, l.rolling_mean, l.rolling_variance, l.n, l.c/l.groups, l.size*l.size);
+            free(l.scales);
+            free(l.rolling_mean);
+            free(l.rolling_variance);
         }
     }
 

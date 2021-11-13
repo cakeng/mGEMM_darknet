@@ -333,6 +333,7 @@ convolutional_layer make_convolutional_layer_backend(int batch, int h, int w, in
 {
     // TODO
     int i;
+    const int vecsize = 8;
     convolutional_layer l = {0};
     l.type = CONVOLUTIONAL;
 
@@ -349,12 +350,27 @@ convolutional_layer make_convolutional_layer_backend(int batch, int h, int w, in
     l.pad = padding;
     l.batch_normalize = batch_normalize;
 
+    if (backend == GEMMPLUS || backend == DIRECT)
+    {
+        int blocks = ((l.n/vecsize) + ((l.n%vecsize) > 0))*vecsize;
+        if (l.n == 3)
+        {
+            blocks = 3;
+        }
+        l.weights = calloc(c/groups*blocks*size*size, sizeof(float));
+        // l.weight_updates = calloc(c/groups*blocks*size*size, sizeof(float));
 
-    l.weights = calloc(c/groups*n*size*size, sizeof(float));
-    l.weight_updates = calloc(c/groups*n*size*size, sizeof(float));
+        l.biases = calloc(blocks, sizeof(float));
+        // l.bias_updates = calloc(blocks, sizeof(float));
+    }
+    else
+    {
+        l.weights = calloc(c/groups*n*size*size, sizeof(float));
+        // l.weight_updates = calloc(c/groups*n*size*size, sizeof(float));
 
-    l.biases = calloc(n, sizeof(float));
-    l.bias_updates = calloc(n, sizeof(float));
+        l.biases = calloc(n, sizeof(float));
+        // l.bias_updates = calloc(n, sizeof(float));
+    }
 
     l.nweights = c/groups*n*size*size;
     l.nbiases = n;
@@ -369,11 +385,26 @@ convolutional_layer make_convolutional_layer_backend(int batch, int h, int w, in
     l.out_h = out_h;
     l.out_w = out_w;
     l.out_c = n;
-    l.outputs = l.out_h * l.out_w * l.out_c;
     l.inputs = l.w * l.h * l.c;
+    l.outputs = l.out_h * l.out_w * l.out_c;
 
-    l.output = calloc(l.batch*l.outputs, sizeof(float));
-    l.delta  = calloc(l.batch*l.outputs, sizeof(float));
+    if (backend == GEMMPLUS || backend == DIRECT)
+    {
+        int blocks = ((l.n/vecsize) + ((l.n%vecsize) > 0))*vecsize;
+        if (l.n == 3)
+        {
+            blocks = 3;
+        }
+        l.output = calloc(l.batch*l.out_h * l.out_w * blocks, sizeof(float));
+        // l.delta  = calloc(l.batch*l.out_h * l.out_w * blocks, sizeof(float));
+    }
+    else
+    {
+        l.output = calloc(l.batch*l.outputs, sizeof(float));
+        // l.delta  = calloc(l.batch*l.outputs, sizeof(float));
+    }
+
+    
 
     // l.forward = forward_convolutional_layer;
     if (backend == DEFAULT)
@@ -418,21 +449,21 @@ convolutional_layer make_convolutional_layer_backend(int batch, int h, int w, in
 
     if(batch_normalize){
         l.scales = calloc(n, sizeof(float));
-        l.scale_updates = calloc(n, sizeof(float));
+        // l.scale_updates = calloc(n, sizeof(float));
         for(i = 0; i < n; ++i){
             l.scales[i] = 1;
         }
 
-        l.mean = calloc(n, sizeof(float));
-        l.variance = calloc(n, sizeof(float));
+        // l.mean = calloc(n, sizeof(float));
+        // l.variance = calloc(n, sizeof(float));
 
-        l.mean_delta = calloc(n, sizeof(float));
-        l.variance_delta = calloc(n, sizeof(float));
+        // l.mean_delta = calloc(n, sizeof(float));
+        // l.variance_delta = calloc(n, sizeof(float));
 
         l.rolling_mean = calloc(n, sizeof(float));
         l.rolling_variance = calloc(n, sizeof(float));
-        l.x = calloc(l.batch*l.outputs, sizeof(float));
-        l.x_norm = calloc(l.batch*l.outputs, sizeof(float));
+        // l.x = calloc(l.batch*l.outputs, sizeof(float));
+        // l.x_norm = calloc(l.batch*l.outputs, sizeof(float));
     }
     if(adam){
         l.m = calloc(l.nweights, sizeof(float));
