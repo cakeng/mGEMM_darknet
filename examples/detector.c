@@ -967,6 +967,10 @@ void run_detector(int argc, char **argv)
         {
             backend = OPENBLAS;
         }
+        else if (0 == strcmp(back, "SKIP"))
+        {
+            backend = SKIP;
+        }
     }
     else
     {

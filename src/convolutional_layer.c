@@ -431,6 +431,11 @@ convolutional_layer make_convolutional_layer_backend(int batch, int h, int w, in
     {
         l.forward = openblas_convolutional_layer;
     }
+    else if (backend == SKIP)
+    {
+        l.forward = skip_convolutional_layer;
+    }
+
 
 
     l.backward = backward_convolutional_layer;
