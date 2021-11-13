@@ -12,6 +12,7 @@ typedef layer convolutional_layer;
 float *NCHWtoNHWC(float *input, int blocks, int channels, int height, int width);
 void deVectorize (layer l, int toNHWC);
 
+void skip_convolutional_layer(convolutional_layer l, network net);
 void gemmplus_convolutional_layer(convolutional_layer l, network net);
 void armnn_convolutional_layer(convolutional_layer l, network net);
 void xnnpack_convolutional_layer(convolutional_layer l, network net);
