@@ -160,6 +160,7 @@ void skip_convolutional_layer(convolutional_layer l, network net)
     printf("%f,", sec(clock()-time));
     time=clock();
     #endif
+    
     activate_array(l.output, l.outputs*l.batch, l.activation);
     if (l.devectorize)
     {

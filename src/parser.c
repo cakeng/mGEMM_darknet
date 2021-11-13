@@ -1835,14 +1835,17 @@ void load_convolutional_weights_backend(layer l, FILE *fp, BACKEND backend)
     }
     else
     {
-        fread(l.weights, sizeof(float), num, fp);
+        float* tmp = (float*)malloc(num*sizeof(float));
+        fread(tmp, sizeof(float), num, fp);
         if (backend != DEFAULT && l.batch_normalize)
         {
-            fold_batchnorm(l.weights, l.biases, l.scales, l.rolling_mean, l.rolling_variance, l.n, l.c/l.groups, l.size*l.size);
+            fold_batchnorm(tmp, l.biases, l.scales, l.rolling_mean, l.rolling_variance, l.n, l.c/l.groups, l.size*l.size);
             free(l.scales);
             free(l.rolling_mean);
             free(l.rolling_variance);
         }
+        memcpy(l.weights, tmp, num*sizeof(float));
+        free(tmp);
     }
 
     if (l.flipped) {
