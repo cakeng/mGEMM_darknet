@@ -123,6 +123,26 @@ void deVectorize (layer l, int toNHWC)
     free(tmp);
 }
 
+void skip_convolutional_layer(convolutional_layer l, network net)
+{
+    #if __TIME_PRINT
+    clock_t time=clock();
+    #endif
+
+    #if __TIME_PRINT
+    printf("%f,", sec(clock()-time));
+    time=clock();
+    #endif
+    activate_array(l.output, l.outputs*l.batch, l.activation);
+    if (l.devectorize)
+    {
+        deVectorize (l, 0);
+    }
+    #if __TIME_PRINT
+    printf("%f,", sec(clock()-time));
+    #endif
+}
+
 void gemmplus_convolutional_layer(convolutional_layer l, network net)
 {
     #if __TIME_PRINT

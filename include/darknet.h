@@ -32,7 +32,7 @@ typedef struct{
 } metadata;
 
 typedef enum{
-    DEFAULT, GEMMPLUS, ARMNN, XNNPACK, DIRECT, OPENBLAS
+    DEFAULT, GEMMPLUS, ARMNN, XNNPACK, DIRECT, OPENBLAS, SKIP
 } BACKEND;
 
 
