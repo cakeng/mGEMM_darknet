@@ -11,7 +11,7 @@ mGEMM is referred to as "PTMM" or "GEMM PLUS" in the code. These are just the de
 <CONVOLUTION_BACKEND> can be either GEMMPLUS, ARMNN, XNNPACK, DEFAULT, OPENBLAS, depending on your choice. GEMMPLUS refers to the mGEMM algorithm backend.
 
 
-.a files for XNNPACK and ARMNN versions we used are included in the git. ARMNN library is modified to use GEMM based convolution method. 
+.a files for XNNPACK and ARMNN versions we used are included in the git. ARMNN library is modified to use the GEMM-based convolution method. 
 
 You'll have to install OPENBLAS on your own. "apt install libopenblas-dev" usually works. Please refer to the Makefile for other dependencies.
 
