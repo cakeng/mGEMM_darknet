@@ -1,6 +1,6 @@
 Modified Darknet code used to test the performance of mGEMM - https://dl.acm.org/doi/10.1145/3498361.3538940
 
-mGEMM is referred as "PTMM" or "GEMM PLUS" in the code. These are just the development names of mGEMM.
+mGEMM is referred to as "PTMM" or "GEMM PLUS" in the code. These are just the development names of mGEMM.
 
 
 1. Use the makefile to build the program. Please use ARMv8 & Aarch64 (64bit OS) based environments. Raspberry Pi 4 with 64-bit Raspberry Pi OS is known to work.
