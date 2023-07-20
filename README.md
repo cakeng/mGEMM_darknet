@@ -17,3 +17,5 @@ You'll have to install OPENBLAS on your own. "apt install libopenblas-dev" usual
 
 Original Darknet Repo: https://github.com/pjreddie/darknet
 
+Source code for mGEMM: https://github.com/cakeng/GEMM_Plus
+
