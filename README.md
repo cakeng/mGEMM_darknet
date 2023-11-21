@@ -1,4 +1,4 @@
-Modified Darknet code used to test the performance of mGEMM - https://dl.acm.org/doi/10.1145/3498361.3538940
+Modified Darknet code used to test the performance of mGEMM: Low-latency Convolution with Minimal Memory Overhead Optimized for Mobile Devices [[Paper Link](https://dl.acm.org/doi/10.1145/3498361.3538940)]
 
 mGEMM is referred to as "PTMM" or "GEMM PLUS" in the code. These are just the development names of mGEMM.
 
